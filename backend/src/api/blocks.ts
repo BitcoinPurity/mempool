@@ -31,7 +31,7 @@ import rbfCache from './rbf-cache';
 import bitcoinSecondClient from './bitcoin/bitcoin-second-client';
 import mempoolBlocks from './mempool-blocks';
 import statistics from './statistics/statistics';
-import { calcBitsDifference, ASERT_EPOCH_BLOCKS, isAsertActive } from './difficulty-adjustment';
+import { calcBitsDifference, ASERT_EPOCH_BLOCKS, isAsertActive, getAsertAnchorHeight } from './difficulty-adjustment';
 import { AsertAnchor, difficultyChangeFromBits } from './asert';
 import AccelerationRepository from '../repositories/AccelerationRepository';
 import { calculateGoodBlockCpfp } from './cpfp';
@@ -52,6 +52,7 @@ class Blocks {
   private quarterEpochBlockTime: number | null = null;
   private asertAnchor: AsertAnchor | null = null;
   private asertWindowBlockTime: number | null = null;
+  private asertDifficultySynced = false;
   private newBlockCallbacks: ((block: BlockExtended, txIds: string[], transactions: TransactionExtended[]) => void)[] = [];
   private classifyingBlocks: boolean = false;
   private oldestCoreLogTimestamp: number | undefined | null = undefined;
@@ -1140,24 +1141,23 @@ class Blocks {
       indexer.reindex(); // Make sure to index the skipped blocks #1619
     }
 
+    // Load ASERT anchor once tip can see it. Sync tip DA fields the first time ASERT
+    // becomes active so we never keep serving legacy 2016-block ETAs after activation.
+    await this.$ensureAsertAnchor(blockHeightTip);
+    if (isAsertActive(blockHeightTip + 1) && this.asertAnchor && !this.asertDifficultySynced) {
+      await this.$syncAsertDifficultyState(blockHeightTip);
+      this.asertDifficultySynced = true;
+      logger.debug(`Initial ASERT difficulty adjustment data set at tip ${blockHeightTip}.`);
+    }
+
     if (!this.lastDifficultyAdjustmentTime) {
       const blockchainInfo = await bitcoinClient.getBlockchainInfo();
       this.updateTimerProgress(timer, 'got blockchain info for initial difficulty adjustment');
       if (blockchainInfo.blocks === blockchainInfo.headers) {
-        await this.$ensureAsertAnchor(blockHeightTip);
-
         if (isAsertActive(blockHeightTip + 1)) {
-          const tipHash = await bitcoinApi.$getBlockHash(blockHeightTip);
-          const tipBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(tipHash);
-          this.lastDifficultyAdjustmentTime = tipBlock.timestamp;
-          this.currentBits = tipBlock.bits;
-          if (blockHeightTip > 0) {
-            const prevHash = await bitcoinApi.$getBlockHash(blockHeightTip - 1);
-            const prevBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(prevHash);
-            this.previousDifficultyRetarget = difficultyChangeFromBits(prevBlock.bits, tipBlock.bits);
+          if (!this.asertAnchor) {
+            logger.warn(`ASERT is active at tip ${blockHeightTip} but anchor is not loaded; difficulty-adjustment API will be unavailable until anchor fetch succeeds`);
           }
-          await this.updateAsertWindowBlockTime();
-          logger.debug(`Initial ASERT difficulty adjustment data set.`);
         } else {
           const heightDiff = blockHeightTip % 2016;
           const blockHash = await bitcoinApi.$getBlockHash(blockHeightTip - heightDiff);
@@ -1270,6 +1270,7 @@ class Blocks {
       await this.$ensureAsertAnchor(this.currentBlockHeight);
 
       if (isAsertActive(block.height)) {
+        this.asertDifficultySynced = true;
         // ASERT: difficulty retargets every block; index whenever nBits changes
         if (this.currentBits && block.bits !== this.currentBits) {
           if (Common.indexingEnabled()) {
@@ -1431,11 +1432,30 @@ class Blocks {
   }
 
   /** @asyncUnsafe */
+  private async $syncAsertDifficultyState(tipHeight: number): Promise<void> {
+    try {
+      const tipHash = await bitcoinApi.$getBlockHash(tipHeight);
+      const tipBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(tipHash);
+      this.lastDifficultyAdjustmentTime = tipBlock.timestamp;
+      this.currentBits = tipBlock.bits;
+      if (tipHeight > 0) {
+        const prevHash = await bitcoinApi.$getBlockHash(tipHeight - 1);
+        const prevBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(prevHash);
+        this.previousDifficultyRetarget = difficultyChangeFromBits(prevBlock.bits, tipBlock.bits);
+      }
+      this.currentBlockHeight = Math.max(this.currentBlockHeight, tipHeight);
+      await this.updateAsertWindowBlockTime();
+    } catch (e) {
+      logger.warn('failed to sync ASERT difficulty state: ' + (e instanceof Error ? e.message : e));
+    }
+  }
+
+  /** @asyncUnsafe */
   private async $ensureAsertAnchor(tipHeight?: number): Promise<void> {
     if (this.asertAnchor || ['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
       return;
     }
-    const anchorHeight = config.PURITY.ASERT_ANCHOR_HEIGHT;
+    const anchorHeight = getAsertAnchorHeight();
     const knownHeight = tipHeight ?? this.currentBlockHeight;
     if (knownHeight < anchorHeight || anchorHeight < 1) {
       return;

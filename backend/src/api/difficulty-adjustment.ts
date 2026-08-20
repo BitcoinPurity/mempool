@@ -2,10 +2,13 @@ import config from '../config';
 import { IDifficultyAdjustment } from '../mempool.interfaces';
 import {
   ASERT_HALF_LIFE,
+  DEFAULT_PURITY_ACTIVATION_HEIGHT,
+  MAINNET_ASERT_ANCHOR_HEIGHT,
   POW_TARGET_SPACING,
   difficultyChangeFromTarget,
   getNextAsertTarget,
 } from './asert';
+import logger from '../logger';
 
 export interface DifficultyAdjustment {
   progressPercent: number;       // Percent: 0 to 100
@@ -242,11 +245,19 @@ export function calcAsertDifficultyAdjustment(
   };
 }
 
+export function getPurityActivationHeight(): number {
+  return config.PURITY?.ACTIVATION_HEIGHT ?? DEFAULT_PURITY_ACTIVATION_HEIGHT;
+}
+
+export function getAsertAnchorHeight(): number {
+  return config.PURITY?.ASERT_ANCHOR_HEIGHT ?? MAINNET_ASERT_ANCHOR_HEIGHT;
+}
+
 export function isAsertActive(nextBlockHeight: number): boolean {
   if (['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
     return false;
   }
-  return nextBlockHeight >= config.PURITY.ACTIVATION_HEIGHT;
+  return nextBlockHeight >= getPurityActivationHeight();
 }
 
 class DifficultyAdjustmentApi {
@@ -255,25 +266,32 @@ class DifficultyAdjustmentApi {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const blocks = require('./blocks').default as typeof import('./blocks').default;
     const previousRetarget = blocks.getPreviousDifficultyRetarget();
-    const blockHeight = blocks.getCurrentBlockHeight();
     const blocksCache = blocks.getBlocks();
     const latestBlock = blocksCache[blocksCache.length - 1];
     if (!latestBlock) {
       return null;
     }
+    // Prefer the tip height from the block cache (matches what the UI shows)
+    const tipHeight = Math.max(blocks.getCurrentBlockHeight(), latestBlock.height);
     const nowSeconds = Math.floor(new Date().getTime() / 1000);
 
-    // ASERT applies when computing work for the *next* block (tip.height + 1 >= activation)
-    if (isAsertActive(blockHeight + 1)) {
+    // ASERT applies when computing work for the *next* block (tip.height + 1 >= activation).
+    // At tip === activation (e.g. 961636), the tip itself is already an ASERT block.
+    if (isAsertActive(tipHeight + 1)) {
       const anchor = blocks.getAsertAnchor();
       if (!anchor) {
+        // Do NOT fall back to the 2016-block DAA — that produces multi-week ETAs.
+        logger.debug('ASERT active but anchor not loaded yet; skipping difficulty-adjustment payload');
         return null;
       }
       const tipBits = latestBlock.bits ?? blocks.getCurrentBits();
-      const nextTarget = getNextAsertTarget(anchor, blockHeight, latestBlock.timestamp);
+      if (!tipBits) {
+        return null;
+      }
+      const nextTarget = getNextAsertTarget(anchor, tipHeight, latestBlock.timestamp);
       return calcAsertDifficultyAdjustment(
         nowSeconds,
-        blockHeight,
+        tipHeight,
         latestBlock.timestamp,
         tipBits,
         previousRetarget,
@@ -287,7 +305,7 @@ class DifficultyAdjustmentApi {
     const DATime = blocks.getLastDifficultyAdjustmentTime();
     const quarterEpochBlockTime = blocks.getQuarterEpochBlockTime();
     return calcDifficultyAdjustment(
-      DATime, quarterEpochBlockTime, nowSeconds, blockHeight, previousRetarget,
+      DATime, quarterEpochBlockTime, nowSeconds, tipHeight, previousRetarget,
       config.MEMPOOL.NETWORK, latestBlock.timestamp
     );
   }
