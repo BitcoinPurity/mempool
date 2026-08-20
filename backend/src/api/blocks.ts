@@ -31,7 +31,8 @@ import rbfCache from './rbf-cache';
 import bitcoinSecondClient from './bitcoin/bitcoin-second-client';
 import mempoolBlocks from './mempool-blocks';
 import statistics from './statistics/statistics';
-import { calcBitsDifference } from './difficulty-adjustment';
+import { calcBitsDifference, ASERT_EPOCH_BLOCKS, isAsertActive } from './difficulty-adjustment';
+import { AsertAnchor, difficultyChangeFromBits } from './asert';
 import AccelerationRepository from '../repositories/AccelerationRepository';
 import { calculateGoodBlockCpfp } from './cpfp';
 import blockProcessor, { BlockProcessingResult, detectTemplateAlgorithm, saveCpfpDataToCpfpSummary } from './block-processor';
@@ -49,6 +50,8 @@ class Blocks {
   private lastDifficultyAdjustmentTime = 0;
   private previousDifficultyRetarget = 0;
   private quarterEpochBlockTime: number | null = null;
+  private asertAnchor: AsertAnchor | null = null;
+  private asertWindowBlockTime: number | null = null;
   private newBlockCallbacks: ((block: BlockExtended, txIds: string[], transactions: TransactionExtended[]) => void)[] = [];
   private classifyingBlocks: boolean = false;
   private oldestCoreLogTimestamp: number | undefined | null = undefined;
@@ -1141,25 +1144,41 @@ class Blocks {
       const blockchainInfo = await bitcoinClient.getBlockchainInfo();
       this.updateTimerProgress(timer, 'got blockchain info for initial difficulty adjustment');
       if (blockchainInfo.blocks === blockchainInfo.headers) {
-        const heightDiff = blockHeightTip % 2016;
-        const blockHash = await bitcoinApi.$getBlockHash(blockHeightTip - heightDiff);
-        this.updateTimerProgress(timer, 'got block hash for initial difficulty adjustment');
-        const block: IEsploraApi.Block = await bitcoinApi.$getBlock(blockHash);
-        this.updateTimerProgress(timer, 'got block for initial difficulty adjustment');
-        this.lastDifficultyAdjustmentTime = block.timestamp;
-        this.currentBits = block.bits;
+        await this.$ensureAsertAnchor(blockHeightTip);
 
-        if (blockHeightTip >= 2016) {
-          const previousPeriodBlockHash = await bitcoinApi.$getBlockHash(blockHeightTip - heightDiff - 2016);
-          this.updateTimerProgress(timer, 'got previous block hash for initial difficulty adjustment');
-          const previousPeriodBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(previousPeriodBlockHash);
-          this.updateTimerProgress(timer, 'got previous block for initial difficulty adjustment');
-          if (['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
-            this.previousDifficultyRetarget = NaN;
-          } else {
-            this.previousDifficultyRetarget = calcBitsDifference(previousPeriodBlock.bits, block.bits);
+        if (isAsertActive(blockHeightTip + 1)) {
+          const tipHash = await bitcoinApi.$getBlockHash(blockHeightTip);
+          const tipBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(tipHash);
+          this.lastDifficultyAdjustmentTime = tipBlock.timestamp;
+          this.currentBits = tipBlock.bits;
+          if (blockHeightTip > 0) {
+            const prevHash = await bitcoinApi.$getBlockHash(blockHeightTip - 1);
+            const prevBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(prevHash);
+            this.previousDifficultyRetarget = difficultyChangeFromBits(prevBlock.bits, tipBlock.bits);
           }
-          logger.debug(`Initial difficulty adjustment data set.`);
+          await this.updateAsertWindowBlockTime();
+          logger.debug(`Initial ASERT difficulty adjustment data set.`);
+        } else {
+          const heightDiff = blockHeightTip % 2016;
+          const blockHash = await bitcoinApi.$getBlockHash(blockHeightTip - heightDiff);
+          this.updateTimerProgress(timer, 'got block hash for initial difficulty adjustment');
+          const block: IEsploraApi.Block = await bitcoinApi.$getBlock(blockHash);
+          this.updateTimerProgress(timer, 'got block for initial difficulty adjustment');
+          this.lastDifficultyAdjustmentTime = block.timestamp;
+          this.currentBits = block.bits;
+
+          if (blockHeightTip >= 2016) {
+            const previousPeriodBlockHash = await bitcoinApi.$getBlockHash(blockHeightTip - heightDiff - 2016);
+            this.updateTimerProgress(timer, 'got previous block hash for initial difficulty adjustment');
+            const previousPeriodBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(previousPeriodBlockHash);
+            this.updateTimerProgress(timer, 'got previous block for initial difficulty adjustment');
+            if (['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
+              this.previousDifficultyRetarget = NaN;
+            } else {
+              this.previousDifficultyRetarget = calcBitsDifference(previousPeriodBlock.bits, block.bits);
+            }
+            logger.debug(`Initial difficulty adjustment data set.`);
+          }
         }
       } else {
         logger.debug(`Blockchain headers (${blockchainInfo.headers}) and blocks (${blockchainInfo.blocks}) not in sync. Waiting...`);
@@ -1167,18 +1186,21 @@ class Blocks {
     }
 
     const heightChanged = lastBlockHeight !== this.currentBlockHeight;
-    // make sure to update the quarter epoch block time now if we won't do it inside the loop
-    if (this.currentBlockHeight >= blockHeightTip && (heightChanged || this.quarterEpochBlockTime == null)) {
+    // make sure to update window block times now if we won't do it inside the loop
+    if (this.currentBlockHeight >= blockHeightTip && (heightChanged || this.quarterEpochBlockTime == null || this.asertWindowBlockTime == null)) {
       await this.updateQuarterEpochBlockTime();
+      await this.updateAsertWindowBlockTime();
     }
 
     while (this.currentBlockHeight < blockHeightTip) {
       if (this.currentBlockHeight === 0) {
         this.currentBlockHeight = blockHeightTip;
         await this.updateQuarterEpochBlockTime();
+        await this.updateAsertWindowBlockTime();
       } else {
         this.currentBlockHeight++;
         await this.updateQuarterEpochBlockTime();
+        await this.updateAsertWindowBlockTime();
         logger.debug(`New block found (#${this.currentBlockHeight})!`);
       }
 
@@ -1245,7 +1267,43 @@ class Blocks {
         }
       }
 
-      if (block.height % 2016 === 0) {
+      await this.$ensureAsertAnchor(this.currentBlockHeight);
+
+      if (isAsertActive(block.height)) {
+        // ASERT: difficulty retargets every block; index whenever nBits changes
+        if (this.currentBits && block.bits !== this.currentBits) {
+          if (Common.indexingEnabled()) {
+            let adjustment: number;
+            if (['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
+              adjustment = NaN;
+            } else {
+              adjustment = Math.round(
+                (difficultyChangeFromBits(this.currentBits, block.bits) + 100) * 10000
+              ) / 1000000;
+            }
+            await DifficultyAdjustmentsRepository.$saveAdjustments({
+              time: block.timestamp,
+              height: block.height,
+              difficulty: block.difficulty,
+              adjustment,
+            });
+            this.updateTimerProgress(timer, `saved ASERT difficulty adjustment for ${this.currentBlockHeight}`);
+          }
+          if (['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
+            this.previousDifficultyRetarget = NaN;
+          } else {
+            this.previousDifficultyRetarget = difficultyChangeFromBits(this.currentBits, block.bits);
+          }
+          this.lastDifficultyAdjustmentTime = block.timestamp;
+          this.currentBits = block.bits;
+        } else {
+          // Still advance "last adjustment" time to tip for ASERT ETA/progress
+          this.lastDifficultyAdjustmentTime = block.timestamp;
+          if (!this.currentBits) {
+            this.currentBits = block.bits;
+          }
+        }
+      } else if (block.height % 2016 === 0) {
         if (Common.indexingEnabled()) {
           let adjustment;
           if (['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
@@ -1353,6 +1411,61 @@ class Blocks {
         logger.warn('failed to update last epoch block time: ' + (e instanceof Error ? e.message : e));
       }
     }
+  }
+
+  /** @asyncUnsafe */
+  private async updateAsertWindowBlockTime(): Promise<void> {
+    const lookback = ASERT_EPOCH_BLOCKS - 1; // 143
+    if (this.currentBlockHeight >= lookback) {
+      try {
+        const hash = await bitcoinApi.$getBlockHash(this.currentBlockHeight - lookback);
+        const block = await bitcoinApi.$getBlock(hash);
+        this.asertWindowBlockTime = block?.timestamp ?? null;
+      } catch (e) {
+        this.asertWindowBlockTime = null;
+        logger.warn('failed to update ASERT window block time: ' + (e instanceof Error ? e.message : e));
+      }
+    } else {
+      this.asertWindowBlockTime = null;
+    }
+  }
+
+  /** @asyncUnsafe */
+  private async $ensureAsertAnchor(tipHeight?: number): Promise<void> {
+    if (this.asertAnchor || ['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
+      return;
+    }
+    const anchorHeight = config.PURITY.ASERT_ANCHOR_HEIGHT;
+    const knownHeight = tipHeight ?? this.currentBlockHeight;
+    if (knownHeight < anchorHeight || anchorHeight < 1) {
+      return;
+    }
+    try {
+      const anchorHash = await bitcoinApi.$getBlockHash(anchorHeight);
+      const anchorBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(anchorHash);
+      const parentHash = await bitcoinApi.$getBlockHash(anchorHeight - 1);
+      const parentBlock: IEsploraApi.Block = await bitcoinApi.$getBlock(parentHash);
+      this.asertAnchor = {
+        height: anchorHeight,
+        bits: anchorBlock.bits,
+        parentTime: parentBlock.timestamp,
+      };
+      logger.info(`ASERT anchor loaded at height ${anchorHeight} (bits=${anchorBlock.bits}, parentTime=${parentBlock.timestamp})`);
+    } catch (e) {
+      logger.warn('failed to load ASERT anchor: ' + (e instanceof Error ? e.message : e));
+    }
+  }
+
+  public getAsertAnchor(): AsertAnchor | null {
+    return this.asertAnchor;
+  }
+
+  public getAsertWindowBlockTime(): number | null {
+    return this.asertWindowBlockTime;
+  }
+
+  public getCurrentBits(): number {
+    return this.currentBits;
   }
 
   /**

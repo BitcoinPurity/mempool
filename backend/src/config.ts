@@ -172,6 +172,12 @@ interface IConfig {
   STRATUM: {
     ENABLED: boolean;
     API: string;
+  },
+  PURITY: {
+    /** Height at which Purity ASERT (aserti3-1d) applies to the next block. Must be > ASERT_ANCHOR_HEIGHT. */
+    ACTIVATION_HEIGHT: number;
+    /** ASERT anchor height (enforcement-chain block). */
+    ASERT_ANCHOR_HEIGHT: number;
   }
 }
 
@@ -345,6 +351,10 @@ const defaults: IConfig = {
   'STRATUM': {
     'ENABLED': false,
     'API': 'http://localhost:1234',
+  },
+  'PURITY': {
+    'ACTIVATION_HEIGHT': 961636,
+    'ASERT_ANCHOR_HEIGHT': 961632,
   }
 };
 
@@ -369,6 +379,7 @@ class Config implements IConfig {
   FIAT_PRICE: IConfig['FIAT_PRICE'];
   WALLETS: IConfig['WALLETS'];
   STRATUM: IConfig['STRATUM'];
+  PURITY: IConfig['PURITY'];
 
   constructor() {
     const configs = this.merge(configFromFile, defaults);
@@ -392,6 +403,7 @@ class Config implements IConfig {
     this.FIAT_PRICE = configs.FIAT_PRICE;
     this.WALLETS = configs.WALLETS;
     this.STRATUM = configs.STRATUM;
+    this.PURITY = configs.PURITY;
   }
 
   merge = (...objects: object[]): IConfig => {

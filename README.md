@@ -9,6 +9,7 @@ A self-hostable Bitcoin mempool explorer based on the **Retropex** fork of [memp
   - All 7 rules per `bip-0110.mediawiki` (oversized scriptPubKey, large PUSHDATA/witness items, undefined witness versions, Taproot annex, large control blocks, OP_SUCCESS, OP_IF/NOTIF in tapscript).
 - **BIP110 miner signaling** display (version bit 4) — inherited from Retropex.
 - **Node distribution chart split by IPv4 / IPv6 / Tor** (Knots nodes), with network percentages computed from active nodes.
+- **Purity aserti3-1d difficulty** after `PURITY.ACTIVATION_HEIGHT` (default 961636): live difficulty stats and indexing follow 24-hour ASERT anchored at height 961632, instead of the legacy 2016-block DAA.
 
 Violation detection logic ported from [paulscode/mempool-bip110](https://github.com/paulscode/mempool-bip110).
 

@@ -1,21 +1,30 @@
 import config from '../config';
 import { IDifficultyAdjustment } from '../mempool.interfaces';
-import blocks from './blocks';
+import {
+  ASERT_HALF_LIFE,
+  POW_TARGET_SPACING,
+  difficultyChangeFromTarget,
+  getNextAsertTarget,
+} from './asert';
 
 export interface DifficultyAdjustment {
   progressPercent: number;       // Percent: 0 to 100
-  difficultyChange: number;      // Percent: -75 to 300
+  difficultyChange: number;      // Percent (ASERT: uncapped; legacy: -75 to 300)
   estimatedRetargetDate: number; // Unix time in ms
   remainingBlocks: number;       // Block count
   remainingTime: number;         // Duration of time in ms
-  previousRetarget: number;      // Percent: -75 to 300
+  previousRetarget: number;      // Percent
   previousTime: number;          // Unix time in ms
   nextRetargetHeight: number;    // Block Height
   timeAvg: number;               // Duration of time in ms
   adjustedTimeAvg;               // Expected block interval with hashrate implied over last 504 blocks
   timeOffset: number;            // (Testnet) Time since last block (cap @ 20min) in ms
   expectedBlocks: number;         // Block count
+  algorithm?: 'legacy' | 'asert';
 }
+
+/** Half-life window in blocks (24h / 10min) used for ASERT UI progress. */
+export const ASERT_EPOCH_BLOCKS = ASERT_HALF_LIFE / POW_TARGET_SPACING; // 144
 
 /**
  * Calculate the difficulty increase/decrease by using the `bits` integer contained in two
@@ -157,12 +166,94 @@ export function calcDifficultyAdjustment(
     adjustedTimeAvg,
     timeOffset,
     expectedBlocks,
+    algorithm: 'legacy',
   };
+}
+
+/**
+ * Purity aserti3-1d difficulty stats for the dashboard / API.
+ * Next block always retargets; difficultyChange is the exact next-block ASERT delta vs tip.
+ */
+export function calcAsertDifficultyAdjustment(
+  nowSeconds: number,
+  tipHeight: number,
+  tipTimestamp: number,
+  tipBits: number,
+  previousRetarget: number,
+  previousAdjustmentTime: number,
+  halfLifeWindowTime: number | null,
+  nextTarget: bigint,
+  network: string,
+): DifficultyAdjustment {
+  const BLOCK_SECONDS_TARGET = POW_TARGET_SPACING;
+  const TESTNET_MAX_BLOCK_SECONDS = 1200;
+
+  const blocksInEpoch = tipHeight >= 0 ? tipHeight % ASERT_EPOCH_BLOCKS : 0;
+  const progressPercent = tipHeight >= 0 ? (blocksInEpoch / ASERT_EPOCH_BLOCKS) * 100 : 100;
+  const remainingBlocks = 1;
+  const nextRetargetHeight = tipHeight >= 0 ? tipHeight + 1 : 0;
+
+  const windowStart = halfLifeWindowTime ?? previousAdjustmentTime;
+  const windowBlocks = halfLifeWindowTime != null
+    ? (ASERT_EPOCH_BLOCKS - 1)
+    : Math.max(1, tipHeight > 0 ? tipHeight : 1);
+  const windowSeconds = Math.max(0, tipTimestamp - windowStart);
+  let timeAvgSecs = windowSeconds > 0 ? windowSeconds / windowBlocks : BLOCK_SECONDS_TARGET;
+  // Fall back toward ideal spacing if the window is degenerate
+  if (!Number.isFinite(timeAvgSecs) || timeAvgSecs <= 0) {
+    timeAvgSecs = BLOCK_SECONDS_TARGET;
+  }
+
+  const difficultyChange = difficultyChangeFromTarget(tipBits, nextTarget);
+  // Under ASERT the equilibrium block interval is the ideal spacing once difficulty settles
+  const adjustedTimeAvgSecs = BLOCK_SECONDS_TARGET;
+
+  let timeOffset = 0;
+  if (network === 'testnet') {
+    if (timeAvgSecs > TESTNET_MAX_BLOCK_SECONDS) {
+      timeAvgSecs = TESTNET_MAX_BLOCK_SECONDS;
+    }
+    const secondsSinceLastBlock = nowSeconds - tipTimestamp;
+    if (secondsSinceLastBlock + timeAvgSecs > TESTNET_MAX_BLOCK_SECONDS) {
+      timeOffset = -Math.min(secondsSinceLastBlock, TESTNET_MAX_BLOCK_SECONDS) * 1000;
+    }
+  }
+
+  const timeAvg = Math.floor(timeAvgSecs * 1000);
+  const adjustedTimeAvg = Math.floor(adjustedTimeAvgSecs * 1000);
+  const remainingTime = remainingBlocks * adjustedTimeAvg;
+  const estimatedRetargetDate = remainingTime + nowSeconds * 1000;
+  const expectedBlocks = Math.max(0, nowSeconds - windowStart) / BLOCK_SECONDS_TARGET;
+
+  return {
+    progressPercent,
+    difficultyChange,
+    estimatedRetargetDate,
+    remainingBlocks,
+    remainingTime,
+    previousRetarget,
+    previousTime: previousAdjustmentTime,
+    nextRetargetHeight,
+    timeAvg,
+    adjustedTimeAvg,
+    timeOffset,
+    expectedBlocks,
+    algorithm: 'asert',
+  };
+}
+
+export function isAsertActive(nextBlockHeight: number): boolean {
+  if (['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
+    return false;
+  }
+  return nextBlockHeight >= config.PURITY.ACTIVATION_HEIGHT;
 }
 
 class DifficultyAdjustmentApi {
   public getDifficultyAdjustment(): IDifficultyAdjustment | null {
-    const DATime = blocks.getLastDifficultyAdjustmentTime();
+    // Lazy import avoids pulling the full blocks graph into pure unit tests
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const blocks = require('./blocks').default as typeof import('./blocks').default;
     const previousRetarget = blocks.getPreviousDifficultyRetarget();
     const blockHeight = blocks.getCurrentBlockHeight();
     const blocksCache = blocks.getBlocks();
@@ -171,8 +262,30 @@ class DifficultyAdjustmentApi {
       return null;
     }
     const nowSeconds = Math.floor(new Date().getTime() / 1000);
-    const quarterEpochBlockTime = blocks.getQuarterEpochBlockTime();
 
+    // ASERT applies when computing work for the *next* block (tip.height + 1 >= activation)
+    if (isAsertActive(blockHeight + 1)) {
+      const anchor = blocks.getAsertAnchor();
+      if (!anchor) {
+        return null;
+      }
+      const tipBits = latestBlock.bits ?? blocks.getCurrentBits();
+      const nextTarget = getNextAsertTarget(anchor, blockHeight, latestBlock.timestamp);
+      return calcAsertDifficultyAdjustment(
+        nowSeconds,
+        blockHeight,
+        latestBlock.timestamp,
+        tipBits,
+        previousRetarget,
+        blocks.getLastDifficultyAdjustmentTime() || latestBlock.timestamp,
+        blocks.getAsertWindowBlockTime(),
+        nextTarget,
+        config.MEMPOOL.NETWORK,
+      );
+    }
+
+    const DATime = blocks.getLastDifficultyAdjustmentTime();
+    const quarterEpochBlockTime = blocks.getQuarterEpochBlockTime();
     return calcDifficultyAdjustment(
       DATime, quarterEpochBlockTime, nowSeconds, blockHeight, previousRetarget,
       config.MEMPOOL.NETWORK, latestBlock.timestamp

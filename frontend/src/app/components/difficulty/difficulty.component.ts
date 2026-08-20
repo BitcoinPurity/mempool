@@ -33,7 +33,8 @@ interface DiffShape {
   expected: boolean;
 }
 
-const EPOCH_BLOCK_LENGTH = 2016; // Bitcoin mainnet
+const EPOCH_BLOCK_LENGTH = 2016; // Bitcoin mainnet legacy DAA
+const ASERT_EPOCH_BLOCKS = 144; // Purity aserti3-1d half-life window
 
 @Component({
   selector: 'app-difficulty',
@@ -103,9 +104,10 @@ export class DifficultyComponent implements OnInit {
           colorPreviousAdjustments = 'var(--transparent-fg)';
         }
 
+        const epochLength = da.algorithm === 'asert' ? ASERT_EPOCH_BLOCKS : EPOCH_BLOCK_LENGTH;
         const blocksUntilHalving = 210000 - (maxHeight % 210000);
         const timeUntilHalving = new Date().getTime() + (blocksUntilHalving * 600000);
-        const newEpochStart = Math.floor(this.stateService.latestBlockHeight / EPOCH_BLOCK_LENGTH) * EPOCH_BLOCK_LENGTH;
+        const newEpochStart = Math.floor(this.stateService.latestBlockHeight / epochLength) * epochLength;
         const newExpectedHeight = Math.floor(newEpochStart + da.expectedBlocks);
         this.now = new Date().getTime();
         this.nextSubsidy = getNextBlockSubsidy(maxHeight);
@@ -119,7 +121,7 @@ export class DifficultyComponent implements OnInit {
           this.expectedHeight = newExpectedHeight;
           this.currentHeight = this.stateService.latestBlockHeight;
           this.currentIndex = this.currentHeight - this.epochStart;
-          this.expectedIndex = Math.min(this.expectedHeight - this.epochStart, 2016) - 1;
+          this.expectedIndex = Math.min(this.expectedHeight - this.epochStart, epochLength) - 1;
           this.difference = this.currentIndex - this.expectedIndex;
 
           this.shapes = [];
@@ -132,19 +134,21 @@ export class DifficultyComponent implements OnInit {
           this.shapes = this.shapes.concat(this.blocksToShapes(
             this.expectedIndex + 1, this.currentIndex, 'ahead', false
           ));
-          if (this.currentIndex < 2015) {
+          if (this.currentIndex < epochLength - 1) {
             this.shapes = this.shapes.concat(this.blocksToShapes(
               this.currentIndex + 1, this.currentIndex + 1, 'next', (this.expectedIndex > this.currentIndex)
             ));
           }
           this.shapes = this.shapes.concat(this.blocksToShapes(
-            Math.max(this.currentIndex + 2, this.expectedIndex + 1), 2105, 'remaining', false
+            Math.max(this.currentIndex + 2, this.expectedIndex + 1), epochLength + 89, 'remaining', false
           ));
         }
 
 
         let retargetDateString;
-        if (da.remainingBlocks > 1870) {
+        if (da.algorithm === 'asert') {
+          retargetDateString = $localize`:@@difficulty-box.next-block:Next block`;
+        } else if (da.remainingBlocks > 1870) {
           retargetDateString = (new Date(da.estimatedRetargetDate)).toLocaleDateString(this.locale, { month: 'long', day: 'numeric' });
         } else {
           retargetDateString = (new Date(da.estimatedRetargetDate)).toLocaleTimeString(this.locale, { month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });

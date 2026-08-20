@@ -161,6 +161,10 @@
     "ENABLED": false,
     "API": "http://localhost:1234"
   },
+  "PURITY": {
+    "ACTIVATION_HEIGHT": 961636,
+    "ASERT_ANCHOR_HEIGHT": 961632
+  },
   "FIAT_PRICE": {
     "ENABLED": true,
     "PAID": false,

@@ -1,8 +1,10 @@
 import {
   calcBitsDifference,
   calcDifficultyAdjustment,
+  calcAsertDifficultyAdjustment,
   DifficultyAdjustment,
 } from '../../api/difficulty-adjustment';
+import { bitsToTarget, calculateAsert, ASERT_HALF_LIFE, POW_TARGET_SPACING, MAINNET_POW_LIMIT } from '../../api/asert';
 
 describe('Mempool Difficulty Adjustment', () => {
   test('should calculate Difficulty Adjustments properly', () => {
@@ -34,6 +36,7 @@ describe('Mempool Difficulty Adjustment', () => {
           adjustedTimeAvg: 553311,
           timeOffset: 0,
           expectedBlocks: 1338.0916666666667,
+          algorithm: 'legacy',
         },
       ],
       [ // Vector 2 (within quarter-epoch overlap)
@@ -59,6 +62,7 @@ describe('Mempool Difficulty Adjustment', () => {
           adjustedTimeAvg: 594992,
           timeOffset: 0,
           expectedBlocks: 161.68833333333333,
+          algorithm: 'legacy',
         },
       ],
       [ // Vector 3 (testnet)
@@ -85,6 +89,7 @@ describe('Mempool Difficulty Adjustment', () => {
           timeOffset: -667000, // 11 min 7 seconds since last block (testnet only)
           // If we add time avg to abs(timeOffset) it makes exactly 1200000 ms, or 20 minutes
           expectedBlocks: 161.68833333333333,
+          algorithm: 'legacy',
         },
       ],
       [ // Vector 4 (mainnet lock-in (epoch ending 788255))
@@ -110,6 +115,7 @@ describe('Mempool Difficulty Adjustment', () => {
           adjustedTimeAvg: 609129,
           timeOffset: 0,
           expectedBlocks: 2045.66,
+          algorithm: 'legacy',
         },
       ],
     ] as [[number, number, number, number, number, string, number], DifficultyAdjustment][];
@@ -162,5 +168,38 @@ describe('Mempool Difficulty Adjustment', () => {
     expect(() => calcBitsDifference(0x1c000000, 0x1a000800)).toThrow(
       /Invalid bits/
     );
+  });
+
+  test('should calculate ASERT difficulty adjustment (next block always retargets)', () => {
+    const tipBits = 0x1a00ffff;
+    const ref = bitsToTarget(tipBits);
+    // one half-life behind => next target doubles => difficulty -50%
+    const nextTarget = calculateAsert(
+      ref,
+      POW_TARGET_SPACING,
+      ASERT_HALF_LIFE + POW_TARGET_SPACING,
+      0,
+      MAINNET_POW_LIMIT,
+      ASERT_HALF_LIFE,
+    );
+    const now = 1_700_100_000;
+    const tipTime = now - 60;
+    const result = calcAsertDifficultyAdjustment(
+      now,
+      961700,
+      tipTime,
+      tipBits,
+      -1.5,
+      tipTime,
+      tipTime - 143 * 600,
+      nextTarget,
+      'mainnet',
+    );
+    expect(result.algorithm).toBe('asert');
+    expect(result.remainingBlocks).toBe(1);
+    expect(result.nextRetargetHeight).toBe(961701);
+    expect(result.difficultyChange).toBeCloseTo(-50, 5);
+    expect(result.previousRetarget).toBe(-1.5);
+    expect(result.adjustedTimeAvg).toBe(600_000);
   });
 });

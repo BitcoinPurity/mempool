@@ -96,6 +96,7 @@ export interface DifficultyAdjustment {
   adjustedTimeAvg: number;
   timeOffset: number;
   expectedBlocks: number;
+  algorithm?: 'legacy' | 'asert';
 }
 
 export interface AddressInformation {
