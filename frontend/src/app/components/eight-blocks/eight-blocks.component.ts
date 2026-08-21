@@ -190,15 +190,14 @@ export class EightBlocksComponent implements OnInit, OnDestroy {
         readyPromises.push(new Promise((resolve) => {
           const subscription = this.apiService.getStrippedBlockTransactions$(block.id).pipe(
             catchError(() => {
-              return of([]);
+              return of([] as TransactionStripped[]);
             }),
-          ).subscribe((transactions) => {
+          ).subscribe((transactions: TransactionStripped[]) => {
             this.strippedTransactions[block.height] = transactions;
             // Align tip-chain BIP110 badges with classified summary flags
-            const count = transactions.filter(tx => Bip110Service.hasAnyViolation(tx.flags)).length;
-            const weight = transactions.reduce((sum, tx) => {
-              return sum + (Bip110Service.hasAnyViolation(tx.flags) ? (tx.vsize || 0) * 4 : 0);
-            }, 0);
+            const violators = transactions.filter(tx => Bip110Service.hasAnyViolation(tx.flags));
+            const count = violators.length;
+            const weight = violators.reduce((sum: number, tx) => sum + (tx.vsize || 0) * 4, 0);
             this.stateService.updateBlockBip110Extras(block.id, count, weight);
             subscription.unsubscribe();
             resolve(transactions);
