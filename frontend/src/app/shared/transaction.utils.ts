@@ -2976,6 +2976,65 @@ function bip110ScriptHasLargePush(scriptHex: string): boolean {
   return false;
 }
 
+function bip110IsP2SHPrevout(vin: { prevout?: { scriptpubkey_type?: string, scriptpubkey?: string } }): boolean {
+  const type = vin.prevout?.scriptpubkey_type;
+  if (type === 'p2sh' || type === 'scripthash') { return true; }
+  const spk = vin.prevout?.scriptpubkey;
+  return typeof spk === 'string'
+    && spk.length === 46
+    && spk.startsWith('a914')
+    && spk.endsWith('87');
+}
+
+/**
+ * Parse a scriptSig into push payloads. Numeric opcodes OP_1NEGATE / OP_1–OP_16
+ * count as 1-byte pushes. Non-push opcodes clear pushOnly (cannot be BIP16).
+ */
+function bip110ParseScriptSigPushes(scriptHex: string): { pushes: { dataHex: string, dataLen: number }[], pushOnly: boolean } | null {
+  if (!scriptHex) { return null; }
+  const len = scriptHex.length / 2;
+  if (scriptHex.length % 2 !== 0) { return null; }
+  const byteAt = (i: number): number => parseInt(scriptHex.substr(i * 2, 2), 16);
+  const readLE = (at: number, count: number): number => {
+    let v = 0;
+    for (let k = 0; k < count; k++) { v += byteAt(at + k) * Math.pow(256, k); }
+    return v;
+  };
+  const pushes: { dataHex: string, dataLen: number }[] = [];
+  let pushOnly = true;
+  let i = 0;
+  while (i < len) {
+    const op = byteAt(i);
+    if (op === 0x00) {
+      pushes.push({ dataHex: '', dataLen: 0 });
+      i += 1;
+      continue;
+    }
+    let headerLen: number;
+    let dataLen: number;
+    if (op >= 0x01 && op <= 0x4b) { headerLen = 1; dataLen = op; }
+    else if (op === 0x4c) { if (i + 2 > len) { break; } headerLen = 2; dataLen = byteAt(i + 1); }
+    else if (op === 0x4d) { if (i + 3 > len) { break; } headerLen = 3; dataLen = readLE(i + 1, 2); }
+    else if (op === 0x4e) { if (i + 5 > len) { break; } headerLen = 5; dataLen = readLE(i + 1, 4); }
+    else if (op === 0x4f || (op >= 0x51 && op <= 0x60)) {
+      pushes.push({ dataHex: '', dataLen: 1 });
+      i += 1;
+      continue;
+    } else {
+      pushOnly = false;
+      i += 1;
+      continue;
+    }
+    if (i + headerLen + dataLen > len) { break; }
+    pushes.push({
+      dataHex: scriptHex.substr((i + headerLen) * 2, dataLen * 2),
+      dataLen,
+    });
+    i += headerLen + dataLen;
+  }
+  return { pushes, pushOnly };
+}
+
 /**
  * Scan a raw Tapscript (hex) for Rule 6 (OP_SUCCESS*) and Rule 7 (OP_IF/OP_NOTIF),
  * skipping push payloads so data bytes are never mistaken for opcodes. An ASM
@@ -3155,25 +3214,28 @@ function getBIP110Flags(tx: Transaction): bigint {
       }
     }
 
-    // Rule 2: scriptSig push data (> 256 bytes). The BIP16 redeemScript (last push
-    // in a P2SH scriptSig) is exempt as an item, but its internal pushes still apply.
-    if (vin.scriptsig_asm) {
-      const parts = vin.scriptsig_asm.split(' ');
-      const isP2SH = vin.prevout?.scriptpubkey_type === 'p2sh';
-      const redeemScriptIndex = isP2SH ? parts.length - 1 : -1;
-      for (let i = 0; i < parts.length; i++) {
-        if (parts[i].startsWith('OP_')) { continue; }
-        if (i === redeemScriptIndex) { continue; }
-        if ((parts[i].length / 2) > BIP110_MAX_PUSHDATA_SIZE) {
-          flags |= TransactionFlags.bip110_large_pushdata;
-          break;
+    // Rule 2: scriptSig push data (> 256 bytes). Walk raw bytes so ASM tokens
+    // like OP_PUSHDATA2 are not mistaken for the redeemScript. The BIP16
+    // redeemScript (last push of a push-only P2SH scriptSig) is exempt as an
+    // item — e.g. a 267-byte 3-of-4 uncompressed CHECKMULTISIG — but its
+    // internal pushes still apply.
+    if (vin.scriptsig) {
+      const parsed = bip110ParseScriptSigPushes(vin.scriptsig);
+      if (parsed && parsed.pushes.length) {
+        const isP2SH = bip110IsP2SHPrevout(vin) || (!vin.prevout && parsed.pushOnly);
+        const redeemScriptIndex = (isP2SH && parsed.pushOnly) ? parsed.pushes.length - 1 : -1;
+        for (let i = 0; i < parsed.pushes.length; i++) {
+          if (i === redeemScriptIndex) { continue; }
+          if (parsed.pushes[i].dataLen > BIP110_MAX_PUSHDATA_SIZE) {
+            flags |= TransactionFlags.bip110_large_pushdata;
+            break;
+          }
         }
-      }
-      if ((flags & TransactionFlags.bip110_large_pushdata) === 0n
-          && redeemScriptIndex >= 0
-          && !parts[redeemScriptIndex].startsWith('OP_')
-          && bip110ScriptHasLargePush(parts[redeemScriptIndex])) {
-        flags |= TransactionFlags.bip110_large_pushdata;
+        if ((flags & TransactionFlags.bip110_large_pushdata) === 0n
+            && redeemScriptIndex >= 0
+            && bip110ScriptHasLargePush(parsed.pushes[redeemScriptIndex].dataHex)) {
+          flags |= TransactionFlags.bip110_large_pushdata;
+        }
       }
     }
   }

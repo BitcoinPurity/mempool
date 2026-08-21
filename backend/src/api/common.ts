@@ -873,36 +873,106 @@ export class Common {
   }
 
   /**
+   * True if this input spends a P2SH output. Prefer the scriptPubKey template
+   * over scriptpubkey_type so Core's "scripthash" and missing/wrong type
+   * strings still match.
+   */
+  static isP2SHPrevout(vin: any): boolean {
+    const type = vin.prevout?.scriptpubkey_type;
+    if (type === 'p2sh' || type === 'scripthash') return true;
+    const spk = vin.prevout?.scriptpubkey;
+    return typeof spk === 'string'
+      && spk.length === 46
+      && spk.startsWith('a914')
+      && spk.endsWith('87');
+  }
+
+  /**
+   * Parse a scriptSig into push payloads. Returns null if the hex is invalid.
+   * `pushOnly` is false if any non-push opcode is present (so it cannot be a
+   * BIP16 scriptSig). Numeric opcodes OP_1NEGATE / OP_1–OP_16 count as 1-byte
+   * pushes for the size check and keep pushOnly true.
+   */
+  static parseScriptSigPushes(scriptHex: string): { pushes: { dataHex: string, dataLen: number }[], pushOnly: boolean } | null {
+    let buf: Buffer;
+    try {
+      buf = Buffer.from(scriptHex, 'hex');
+    } catch (e) {
+      return null;
+    }
+    const pushes: { dataHex: string, dataLen: number }[] = [];
+    let pushOnly = true;
+    let i = 0;
+    while (i < buf.length) {
+      const op = buf[i];
+      if (op === 0x00) {
+        pushes.push({ dataHex: '', dataLen: 0 });
+        i += 1;
+        continue;
+      }
+      let headerLen: number;
+      let dataLen: number;
+      if (op >= 0x01 && op <= 0x4b) {
+        headerLen = 1;
+        dataLen = op;
+      } else if (op === 0x4c) {
+        if (i + 2 > buf.length) break;
+        headerLen = 2;
+        dataLen = buf.readUInt8(i + 1);
+      } else if (op === 0x4d) {
+        if (i + 3 > buf.length) break;
+        headerLen = 3;
+        dataLen = buf.readUInt16LE(i + 1);
+      } else if (op === 0x4e) {
+        if (i + 5 > buf.length) break;
+        headerLen = 5;
+        dataLen = buf.readUInt32LE(i + 1);
+      } else if (op === 0x4f || (op >= 0x51 && op <= 0x60)) {
+        pushes.push({ dataHex: '', dataLen: 1 });
+        i += 1;
+        continue;
+      } else {
+        pushOnly = false;
+        i += 1;
+        continue;
+      }
+      if (i + headerLen + dataLen > buf.length) break;
+      const data = buf.subarray(i + headerLen, i + headerLen + dataLen);
+      pushes.push({ dataHex: data.toString('hex'), dataLen });
+      i += headerLen + dataLen;
+    }
+    return { pushes, pushOnly };
+  }
+
+  /**
    * Check scriptSig for BIP110 Rule 2 (large pushdata)
    * BIP110: "OP_PUSHDATA* payloads [...] exceeding 256 bytes are invalid,
    * except for the redeemScript push in BIP16 scriptSigs."
+   *
+   * Walks the raw scriptSig so OP_PUSHDATA* length prefixes in the ASM
+   * (OP_PUSHDATA1/2/4) cannot be mistaken for the last "token". A typical
+   * false positive was a P2SH 3-of-4 uncompressed CHECKMULTISIG whose
+   * redeemScript is 267 bytes: that item is exempt; its 65-byte pubkey
+   * pushes are not a violation.
    */
   static checkBIP110ScriptSigRules(vin: any): bigint {
     let flags = 0n;
 
     if (!vin.scriptsig || vin.scriptsig.length === 0) return flags;
 
-    // Parse scriptsig to find push operations
-    const scriptsigAsm = vin.scriptsig_asm || transactionUtils.convertScriptSigAsm(vin.scriptsig);
-    if (!scriptsigAsm) return flags;
+    const parsed = this.parseScriptSigPushes(vin.scriptsig);
+    if (!parsed || parsed.pushes.length === 0) return flags;
 
-    const parts = scriptsigAsm.split(' ');
+    // BIP16: the last push of a push-only P2SH scriptSig is the redeemScript.
+    // Without prevout data (Core RPC / block summary paths), a push-only
+    // scriptSig is still treated that way so a 267-byte redeemScript is not
+    // flagged as "large data push".
+    const isP2SH = this.isP2SHPrevout(vin) || (!vin.prevout && parsed.pushOnly);
+    const redeemScriptIndex = (isP2SH && parsed.pushOnly) ? parsed.pushes.length - 1 : -1;
 
-    // For P2SH, the last push is the redeemScript. It is exempt from the
-    // *item* size check (it is a script, not a data argument), but its internal
-    // OP_PUSHDATA* payloads remain subject to the 256-byte limit.
-    const isP2SH = vin.prevout?.scriptpubkey_type === 'p2sh';
-    const redeemScriptIndex = isP2SH ? parts.length - 1 : -1;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      // Skip opcodes
-      if (part.startsWith('OP_')) continue;
-      // The redeemScript itself is exempt as an item; scanned for internal pushes below
+    for (let i = 0; i < parsed.pushes.length; i++) {
       if (i === redeemScriptIndex) continue;
-
-      // Check data size
-      if ((part.length / 2) > BIP110_MAX_PUSHDATA_SIZE) {
+      if (parsed.pushes[i].dataLen > BIP110_MAX_PUSHDATA_SIZE) {
         flags |= TransactionFlags.bip110_large_pushdata;
         break;
       }
@@ -912,8 +982,7 @@ export class Common {
     // the same OP_PUSHDATA* restrictions during execution).
     if ((flags & TransactionFlags.bip110_large_pushdata) === 0n
         && redeemScriptIndex >= 0
-        && !parts[redeemScriptIndex].startsWith('OP_')
-        && this.scriptHasLargePush(parts[redeemScriptIndex])) {
+        && this.scriptHasLargePush(parsed.pushes[redeemScriptIndex].dataHex)) {
       flags |= TransactionFlags.bip110_large_pushdata;
     }
 
