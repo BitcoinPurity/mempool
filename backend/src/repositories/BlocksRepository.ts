@@ -1326,7 +1326,7 @@ class BlocksRepository {
         if (config.MEMPOOL.BACKEND === 'esplora') {
           const txs = (await bitcoinApi.$getTxsForBlock(dbBlk.id, dbBlk.stale)).map(tx => transactionUtils.extendTransaction(tx));
           summary = blocks.summarizeBlockTransactions(dbBlk.id, dbBlk.height, txs);
-          summaryVersion = 1;
+          summaryVersion = Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION;
         } else {
           // Call Core RPC
           const block = await bitcoinClient.getBlock(dbBlk.id, 2);
@@ -1353,7 +1353,18 @@ class BlocksRepository {
     extras.bip110ViolationCount = 0;
     extras.bip110ViolationWeight = 0;
     if (Common.blocksSummariesIndexingEnabled()) {
-      const summary = await BlocksSummariesRepository.$getByBlockId(dbBlk.id);
+      let summary = await BlocksSummariesRepository.$getByBlockId(dbBlk.id);
+      // Rebuild stale classifications so BIP110 false positives (e.g. P2SH redeemScript)
+      // are not reflected in block extras / chain overview indicators.
+      if (summary?.transactions
+          && (summary.version ?? 0) < Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION) {
+        try {
+          const txs = await blocks.$getStrippedBlockTransactions(dbBlk.id, true, false, undefined, dbBlk.height);
+          summary = { id: dbBlk.id, transactions: txs, version: Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION };
+        } catch (e) {
+          logger.warn(`Failed to rebuild stale block summary flags for ${dbBlk.id}: ` + (e instanceof Error ? e.message : e));
+        }
+      }
       if (summary?.transactions) {
         for (const tx of summary.transactions) {
           if (Common.hasAnyBIP110Violation(tx.flags)) {

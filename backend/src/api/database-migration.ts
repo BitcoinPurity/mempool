@@ -7,7 +7,7 @@ import cpfpRepository from '../repositories/CpfpRepository';
 import { RowDataPacket } from 'mysql2';
 
 class DatabaseMigration {
-  private static currentVersion = 111;
+  private static currentVersion = 112;
   private queryTimeout = 3600_000;
   private statisticsAddedIndexed = false;
   private uniqueLogs: string[] = [];
@@ -1254,6 +1254,15 @@ class DatabaseMigration {
     if (databaseSchemaVersion < 111 && isBitcoin === true) {
       await this.$executeQuery('ALTER TABLE `compact_cpfp_clusters` ADD template_algo TINYINT UNSIGNED NOT NULL DEFAULT 0');
       await this.updateToSchemaVersion(111);
+    }
+
+    // Reclassify block summary goggles/BIP110 flags after P2SH redeemScript false-positive fix.
+    // summaries with version < BLOCKS_SUMMARY_CLASSIFICATION_VERSION (3) are rebuilt on serve
+    // and by background $classifyBlocks; resetting version marks them for that pass.
+    if (databaseSchemaVersion < 112 && isBitcoin === true) {
+      await this.$executeQuery('UPDATE blocks_summaries SET version = 0');
+      await this.$executeQuery('UPDATE blocks_templates SET version = 0');
+      await this.updateToSchemaVersion(112);
     }
   }
 

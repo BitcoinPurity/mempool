@@ -1390,6 +1390,16 @@ export class Common {
     );
   }
 
+  /**
+   * Classification version stored in blocks_summaries.version.
+   * Bump when goggles / BIP110 flag detection changes so stale summaries are
+   * rebuilt (serve path + background $classifyBlocks).
+   *
+   * v3: BIP110 Rule 2 P2SH redeemScript exemption via raw scriptSig parsing
+   *     (fixes false "large data push" on 3-of-4 uncompressed CHECKMULTISIG).
+   */
+  static readonly BLOCKS_SUMMARY_CLASSIFICATION_VERSION = 3;
+
   static blocksSummariesIndexingEnabled(): boolean {
     return (
       Common.indexingEnabled() &&

@@ -77,6 +77,19 @@ class Blocks {
     this.blockSummaries = blockSummaries;
   }
 
+  /** Replace or append a block summary in the in-memory cache (keeps version). */
+  private $replaceCachedBlockSummary(summary: BlockSummary): void {
+    const idx = this.blockSummaries.findIndex(b => b.id === summary.id);
+    if (idx >= 0) {
+      this.blockSummaries[idx] = summary;
+    } else {
+      this.blockSummaries.push(summary);
+      if (this.blockSummaries.length > config.MEMPOOL.INITIAL_BLOCKS_AMOUNT * 4) {
+        this.blockSummaries = this.blockSummaries.slice(-config.MEMPOOL.INITIAL_BLOCKS_AMOUNT * 4);
+      }
+    }
+  }
+
   public setNewBlockCallback(fn: (block: BlockExtended, txIds: string[], transactions: TransactionExtended[]) => void) {
     this.newBlockCallbacks.push(fn);
   }
@@ -235,6 +248,7 @@ class Blocks {
     return {
       id: hash,
       transactions: Common.classifyTransactions(transactions, height),
+      version: Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION,
     };
   }
 
@@ -824,19 +838,21 @@ class Blocks {
 
     // classification requires an esplora backend
     if (!Common.gogglesIndexingEnabled() || config.MEMPOOL.BACKEND !== 'esplora') {
+      this.classifyingBlocks = false;
       return;
     }
 
     const currentBlockHeight = this.getCurrentBlockHeight();
 
-    const targetSummaryVersion: number = 1;
-    const targetTemplateVersion: number = 1;
+    const targetSummaryVersion = Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION;
+    const targetTemplateVersion = Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION;
 
     const unclassifiedBlocksList = await BlocksSummariesRepository.$getSummariesBelowVersion(targetSummaryVersion);
     const unclassifiedTemplatesList = await BlocksSummariesRepository.$getTemplatesBelowVersion(targetTemplateVersion);
 
     // nothing to do
     if (!unclassifiedBlocksList?.length && !unclassifiedTemplatesList?.length) {
+      this.classifyingBlocks = false;
       return;
     }
 
@@ -853,22 +869,22 @@ class Blocks {
       unclassifiedTemplatesList.length,
     );
 
-    const unclassifiedBlocks = {};
-    const unclassifiedTemplates = {};
+    const unclassifiedBlocks: { [height: number]: { height: number, id: string, version: number } } = {};
+    const unclassifiedTemplates: { [height: number]: { height: number, id: string, version: number } } = {};
     for (const block of unclassifiedBlocksList) {
-      unclassifiedBlocks[block.height] = block.id;
+      unclassifiedBlocks[block.height] = block;
     }
     for (const template of unclassifiedTemplatesList) {
-      unclassifiedTemplates[template.height] = template.id;
+      unclassifiedTemplates[template.height] = template;
     }
 
-    logger.debug(`Classifying blocks and templates from #${currentBlockHeight} to #${minHeight}`, logger.tags.goggles);
+    logger.debug(`Classifying blocks and templates from #${currentBlockHeight} to #${minHeight} (summary v${targetSummaryVersion})`, logger.tags.goggles);
 
     for (let height = currentBlockHeight; height >= 0; height--) {
       try {
         let txs: MempoolTransactionExtended[] | null = null;
         if (unclassifiedBlocks[height]) {
-          const blockHash = unclassifiedBlocks[height];
+          const blockHash = unclassifiedBlocks[height].id;
           // fetch transactions
           txs = (await bitcoinApi.$getTxsForBlock(blockHash, true)).map(tx => transactionUtils.extendMempoolTransaction(tx)) || [];
           // add CPFP
@@ -876,8 +892,9 @@ class Blocks {
           const cpfpSummary = saveCpfpDataToCpfpSummary(txs, blockCpfpData);
           // classify
           const { transactions: classifiedTxs } = this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
-          await BlocksSummariesRepository.$saveTransactions(height, blockHash, classifiedTxs, 2);
-          if (unclassifiedBlocks[height].version < 2 && targetSummaryVersion === 2) {
+          await BlocksSummariesRepository.$saveTransactions(height, blockHash, classifiedTxs, targetSummaryVersion);
+          this.$replaceCachedBlockSummary({ id: blockHash, transactions: classifiedTxs, version: targetSummaryVersion });
+          if (unclassifiedBlocks[height].version < 2 && targetSummaryVersion >= 2) {
             const cpfpClusters = await CpfpRepository.$getClustersAt(height);
             if (!cpfpRepository.compareClusters(cpfpClusters, cpfpSummary.clusters)) {
               // CPFP clusters changed - update the compact_cpfp tables
@@ -889,43 +906,40 @@ class Blocks {
         }
         if (unclassifiedTemplates[height]) {
           // classify template
-          const blockHash = unclassifiedTemplates[height];
+          const blockHash = unclassifiedTemplates[height].id;
           const template = await BlocksSummariesRepository.$getTemplate(blockHash);
-          const alreadyClassified = template?.transactions?.reduce((classified, tx) => (classified || tx.flags > 0), false);
           let classifiedTemplate = template?.transactions || [];
-          if (!alreadyClassified) {
-            const templateTxs: (TransactionExtended | TransactionClassified)[] = [];
-            const blockTxMap: { [txid: string]: TransactionExtended } = {};
-            for (const tx of (txs || [])) {
-              blockTxMap[tx.txid] = tx;
-            }
-            for (const templateTx of (template?.transactions || [])) {
-              let tx: TransactionExtended | null = blockTxMap[templateTx.txid];
-              if (!tx) {
-                try {
-                  tx = await transactionUtils.$getTransactionExtended(templateTx.txid, false, true, false);
-                } catch (e) {
-                  // transaction probably not found
-                }
-              }
-              templateTxs.push(tx || templateTx);
-            }
-            const blockCpfpData = calculateGoodBlockCpfp(height, templateTxs?.filter(tx => tx['effectiveFeePerVsize'] != null) as MempoolTransactionExtended[], []);
-            const cpfpSummary = saveCpfpDataToCpfpSummary(templateTxs as MempoolTransactionExtended[], blockCpfpData);
-            // classify
-            const { transactions: classifiedTxs } = this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
-            const classifiedTxMap: { [txid: string]: TransactionClassified } = {};
-            for (const tx of classifiedTxs) {
-              classifiedTxMap[tx.txid] = tx;
-            }
-            classifiedTemplate = classifiedTemplate.map(tx => {
-              if (classifiedTxMap[tx.txid]) {
-                tx.flags = classifiedTxMap[tx.txid].flags || 0;
-              }
-              return tx;
-            });
+          const templateTxs: (TransactionExtended | TransactionClassified)[] = [];
+          const blockTxMap: { [txid: string]: TransactionExtended } = {};
+          for (const tx of (txs || [])) {
+            blockTxMap[tx.txid] = tx;
           }
-          await BlocksSummariesRepository.$saveTemplate({ height, template: { id: blockHash, transactions: classifiedTemplate }, version: 1 });
+          for (const templateTx of (template?.transactions || [])) {
+            let tx: TransactionExtended | null = blockTxMap[templateTx.txid];
+            if (!tx) {
+              try {
+                tx = await transactionUtils.$getTransactionExtended(templateTx.txid, false, true, false);
+              } catch (e) {
+                // transaction probably not found
+              }
+            }
+            templateTxs.push(tx || templateTx);
+          }
+          const blockCpfpData = calculateGoodBlockCpfp(height, templateTxs?.filter(tx => tx['effectiveFeePerVsize'] != null) as MempoolTransactionExtended[], []);
+          const cpfpSummary = saveCpfpDataToCpfpSummary(templateTxs as MempoolTransactionExtended[], blockCpfpData);
+          // classify
+          const { transactions: classifiedTxs } = this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
+          const classifiedTxMap: { [txid: string]: TransactionClassified } = {};
+          for (const tx of classifiedTxs) {
+            classifiedTxMap[tx.txid] = tx;
+          }
+          classifiedTemplate = classifiedTemplate.map(tx => {
+            if (classifiedTxMap[tx.txid]) {
+              tx.flags = classifiedTxMap[tx.txid].flags || 0;
+            }
+            return tx;
+          });
+          await BlocksSummariesRepository.$saveTemplate({ height, template: { id: blockHash, transactions: classifiedTemplate }, version: targetTemplateVersion });
           await Common.sleep$(250);
         }
       } catch (e) {
@@ -1631,10 +1645,13 @@ class Blocks {
   public async $getStrippedBlockTransactions(hash: string, skipMemoryCache = false,
     skipDBLookup = false, cpfpSummary?: CpfpSummary, blockHeight?: number): Promise<TransactionClassified[]>
   {
+    const minClassificationVersion = Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION;
+
     if (skipMemoryCache === false) {
-      // Check the memory cache
+      // Check the memory cache (ignore summaries classified before the current detector)
       const cachedSummary = this.getBlockSummaries().find((b) => b.id === hash);
-      if (cachedSummary?.transactions?.length) {
+      if (cachedSummary?.transactions?.length
+          && (cachedSummary.version ?? 0) >= minClassificationVersion) {
         return cachedSummary.transactions;
       }
     }
@@ -1642,14 +1659,16 @@ class Blocks {
     // Check if it's indexed in db
     if (skipDBLookup === false && Common.blocksSummariesIndexingEnabled() === true) {
       const indexedSummary = await BlocksSummariesRepository.$getByBlockId(hash);
-      if (indexedSummary !== undefined && indexedSummary?.transactions?.length) {
+      if (indexedSummary !== undefined && indexedSummary?.transactions?.length
+          && (indexedSummary.version ?? 0) >= minClassificationVersion) {
         return indexedSummary.transactions;
       }
     }
 
     let height = blockHeight;
     let summary: BlockSummary;
-    let summaryVersion = 0;
+    // Always stamp the current classification version when we recompute flags.
+    const summaryVersion = minClassificationVersion;
     if (cpfpSummary && !Common.isLiquid()) {
       summary = {
         id: hash,
@@ -1670,12 +1689,12 @@ class Blocks {
             flags: flags,
           };
         }),
+        version: summaryVersion,
       };
-      summaryVersion = cpfpSummary.version;
     } else {
       const txs = (await bitcoinApi.$getTxsForBlock(hash, true)).map(tx => transactionUtils.extendTransaction(tx));
       summary = this.summarizeBlockTransactions(hash, height || 0, txs);
-      summaryVersion = 1;
+      summary.version = summaryVersion;
     }
     if (height == null) {
       // If the block is orphaned, use the height from the chaintips cache
@@ -1692,6 +1711,7 @@ class Blocks {
     if (Common.blocksSummariesIndexingEnabled() === true) {
       await BlocksSummariesRepository.$saveTransactions(height, hash, summary.transactions, summaryVersion);
     }
+    this.$replaceCachedBlockSummary(summary);
 
     return summary.transactions;
   }
@@ -1829,7 +1849,7 @@ class Blocks {
           if (config.MEMPOOL.BACKEND === 'esplora') {
             const txs = (await bitcoinApi.$getTxsForBlock(cleanBlock.hash, cleanBlock.stale)).map(tx => transactionUtils.extendTransaction(tx));
             summary = this.summarizeBlockTransactions(cleanBlock.hash, cleanBlock.height, txs);
-            summaryVersion = 1;
+            summaryVersion = Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION;
           } else {
             // Call Core RPC
             const block = await bitcoinClient.getBlock(cleanBlock.hash, 2);
