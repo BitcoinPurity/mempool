@@ -539,6 +539,28 @@ export class StateService {
     this.blocksSubject$.next(this.blocks);
   }
 
+  /**
+   * Update tip-chain BIP110 violation badges from a freshly classified block summary.
+   * Needed when backend tip extras still carry stale counts after a detector fix.
+   */
+  updateBlockBip110Extras(blockId: string, count: number, weight: number = 0): void {
+    let changed = false;
+    for (const block of this.blocks) {
+      if (block.id !== blockId || !block.extras) {
+        continue;
+      }
+      if (block.extras.bip110ViolationCount !== count
+          || block.extras.bip110ViolationWeight !== weight) {
+        block.extras.bip110ViolationCount = count;
+        block.extras.bip110ViolationWeight = weight;
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.blocksSubject$.next(this.blocks);
+    }
+  }
+
   focusSearchInputDesktop() {
     if (!hasTouchScreen()) {
       this.searchFocus$.next(true);

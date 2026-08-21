@@ -368,6 +368,16 @@ export class BlockComponent implements OnInit, OnDestroy {
         // BIP110 violations among the block's transactions (list + count)
         this.bip110ViolationTxs = transactions.filter(tx => Bip110Service.hasAnyViolation(tx.flags));
         this.bip110ViolationCount = this.bip110ViolationTxs.length;
+        // Keep the top chain cubes in sync: tip extras.bip110ViolationCount can stay
+        // stale after a detector fix until the backend tip cache is refreshed.
+        const violationWeight = this.bip110ViolationTxs.reduce((sum, tx) => sum + (tx.vsize || 0) * 4, 0);
+        if (block?.id) {
+          this.stateService.updateBlockBip110Extras(block.id, this.bip110ViolationCount, violationWeight);
+        }
+        if (this.block?.extras && this.block.id === block.id) {
+          this.block.extras.bip110ViolationCount = this.bip110ViolationCount;
+          this.block.extras.bip110ViolationWeight = violationWeight;
+        }
       } else {
         this.strippedTransactions = [];
         this.bip110ViolationTxs = [];

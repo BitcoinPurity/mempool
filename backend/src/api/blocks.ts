@@ -75,6 +75,20 @@ class Blocks {
 
   public setBlockSummaries(blockSummaries: BlockSummary[]) {
     this.blockSummaries = blockSummaries;
+    // Disk-cache restore loads tip extras before summaries; re-align BIP110 counts
+    // once summaries are present (and skip stale pre-v3 classifications).
+    for (const summary of this.blockSummaries) {
+      if ((summary.version ?? 0) >= Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION) {
+        this.$syncBlockBip110ExtrasFromSummary(summary);
+      } else if (summary?.id) {
+        const block = this.blocks.find(b => b.id === summary.id);
+        if (block?.extras) {
+          // Avoid showing stale radioactive badges until the summary is rebuilt.
+          block.extras.bip110ViolationCount = 0;
+          block.extras.bip110ViolationWeight = 0;
+        }
+      }
+    }
   }
 
   /** Replace or append a block summary in the in-memory cache (keeps version). */
@@ -88,6 +102,28 @@ class Blocks {
         this.blockSummaries = this.blockSummaries.slice(-config.MEMPOOL.INITIAL_BLOCKS_AMOUNT * 4);
       }
     }
+    this.$syncBlockBip110ExtrasFromSummary(summary);
+  }
+
+  /** Keep tip-block extras.bip110Violation* aligned with the latest classified summary. */
+  private $syncBlockBip110ExtrasFromSummary(summary: BlockSummary): void {
+    if (!summary?.transactions?.length) {
+      return;
+    }
+    const block = this.blocks.find(b => b.id === summary.id);
+    if (!block?.extras) {
+      return;
+    }
+    let count = 0;
+    let weight = 0;
+    for (const tx of summary.transactions) {
+      if (Common.hasAnyBIP110Violation(tx.flags)) {
+        count++;
+        weight += (tx.vsize || 0) * 4;
+      }
+    }
+    block.extras.bip110ViolationCount = count;
+    block.extras.bip110ViolationWeight = weight;
   }
 
   public setNewBlockCallback(fn: (block: BlockExtended, txIds: string[], transactions: TransactionExtended[]) => void) {
@@ -1628,6 +1664,11 @@ class Blocks {
     if (!skipMemoryCache) {
       const blockByHash = this.getBlocks().find((b) => b.id === hash);
       if (blockByHash) {
+        // Tip cache may still carry pre-reclassification BIP110 counts; refresh from summary.
+        const summary = this.blockSummaries.find(b => b.id === hash);
+        if (summary && (summary.version ?? 0) >= Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION) {
+          this.$syncBlockBip110ExtrasFromSummary(summary);
+        }
         return blockByHash;
       }
     }

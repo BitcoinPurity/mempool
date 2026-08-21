@@ -11,6 +11,7 @@ import { BlockOverviewGraphComponent } from '@components/block-overview-graph/bl
 import { detectWebGL } from '@app/shared/graphs.utils';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { BytesPipe } from '@app/shared/pipes/bytes-pipe/bytes.pipe';
+import { Bip110Service } from '@app/services/bip110.service';
 
 function bestFitResolution(min, max, n): number {
   const target = (min + max) / 2;
@@ -193,6 +194,12 @@ export class EightBlocksComponent implements OnInit, OnDestroy {
             }),
           ).subscribe((transactions) => {
             this.strippedTransactions[block.height] = transactions;
+            // Align tip-chain BIP110 badges with classified summary flags
+            const count = transactions.filter(tx => Bip110Service.hasAnyViolation(tx.flags)).length;
+            const weight = transactions.reduce((sum, tx) => {
+              return sum + (Bip110Service.hasAnyViolation(tx.flags) ? (tx.vsize || 0) * 4 : 0);
+            }, 0);
+            this.stateService.updateBlockBip110Extras(block.id, count, weight);
             subscription.unsubscribe();
             resolve(transactions);
           });

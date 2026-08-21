@@ -683,7 +683,9 @@ class BitcoinRoutes {
     }
     try {
       const transactions = await blocks.$getStrippedBlockTransactions(req.params.hash);
-      res.setHeader('Expires', new Date(Date.now() + 1000 * 3600 * 24 * 30).toUTCString());
+      // Revalidate so goggles/BIP110 flag fixes are not stuck behind a 30d Expires.
+      // ETag still allows cheap 304s when the summary is unchanged.
+      res.setHeader('Cache-Control', 'public, no-cache');
       res.json(transactions);
     } catch (e) {
       handleError(req, res, 500, 'Failed to get block summary');
@@ -705,7 +707,7 @@ class BitcoinRoutes {
         handleError(req, res, 404, `Transaction not found in summary`);
         return;
       }
-      res.setHeader('Expires', new Date(Date.now() + 1000 * 3600 * 24 * 30).toUTCString());
+      res.setHeader('Cache-Control', 'public, no-cache');
       res.json(transaction);
     } catch (e) {
       handleError(req, res, 500, 'Failed to get transaction from summary');
