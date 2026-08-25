@@ -1825,6 +1825,30 @@ class Blocks {
               block.extras.matchRate = auditScore.matchRate;
               block.extras.expectedFees = auditScore.expectedFees ?? null;
               block.extras.expectedWeight = auditScore.expectedWeight ?? null;
+            } else {
+              try {
+                const summaryTxs = await this.$getStrippedBlockTransactions(block.id);
+                if (summaryTxs?.length) {
+                  block.extras.matchRate = Audit.computeSpamHealthFromClassified(summaryTxs);
+                  void BlocksAuditsRepository.$saveAudit({
+                    version: 1,
+                    time: block.timestamp,
+                    height: block.height,
+                    hash: block.id,
+                    unseenTxs: [],
+                    addedTxs: [],
+                    prioritizedTxs: [],
+                    missingTxs: [],
+                    freshTxs: [],
+                    sigopTxs: [],
+                    fullrbfTxs: [],
+                    acceleratedTxs: [],
+                    matchRate: block.extras.matchRate,
+                  });
+                }
+              } catch (e) {
+                logger.debug(`Cannot backfill health for block ${block.height}: ` + (e instanceof Error ? e.message : e));
+              }
             }
           }
         }
@@ -1836,6 +1860,31 @@ class Blocks {
         // ($indexBlock only fetches coinbase, so violation data is always 0 without this)
         if (block.extras) {
           block.extras.bip110Signaling = Common.isSignalingBIP110(block.version);
+          if (config.MEMPOOL.AUDIT && block.extras.matchRate == null) {
+            try {
+              const summaryTxs = await this.$getStrippedBlockTransactions(block.id);
+              if (summaryTxs?.length) {
+                block.extras.matchRate = Audit.computeSpamHealthFromClassified(summaryTxs);
+                void BlocksAuditsRepository.$saveAudit({
+                  version: 1,
+                  time: block.timestamp,
+                  height: block.height,
+                  hash: block.id,
+                  unseenTxs: [],
+                  addedTxs: [],
+                  prioritizedTxs: [],
+                  missingTxs: [],
+                  freshTxs: [],
+                  sigopTxs: [],
+                  fullrbfTxs: [],
+                  acceleratedTxs: [],
+                  matchRate: block.extras.matchRate,
+                });
+              }
+            } catch (e) {
+              logger.debug(`Cannot backfill health for block ${block.height}: ` + (e instanceof Error ? e.message : e));
+            }
+          }
         }
         returnBlocks.push(block);
       }
