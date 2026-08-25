@@ -54,15 +54,31 @@ tr, td, th {
 .pool {
   width: 17%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   max-width: 160px;
+  white-space: normal;
   @media (max-width: 576px) {
     width: 34%;
+  }
+
+  .pool-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .pool-reward-address {
+    font-size: 0.8rem;
+    opacity: 0.85;
+    padding-left: 27px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 .pool.widget {
   width: 40%;
+  max-width: none;
   padding-left: 24px;
   @media (min-width: 768px) AND (max-width: 926px) {
     padding-left: 0px;

@@ -66,6 +66,10 @@ class BlockProcessor {
     const blockExtended = await blocks.$getBlockExtended(block, cpfpSummary.transactions, pool);
     const blockSummary = blocks.summarizeBlockTransactions(block.id, block.height, cpfpSummary.transactions);
 
+    if (blockExtended.extras && config.MEMPOOL.AUDIT) {
+      blockExtended.extras.matchRate = Audit.computeSpamHealth(cpfpSummary.transactions, block.height);
+    }
+
     let auditResult: ProcessedAudit | undefined;
     if (config.MEMPOOL.AUDIT && memPool.isInSync()) {
       auditResult = await this.$runAudit(

@@ -1,7 +1,7 @@
-import { couldStartTrivia } from 'typescript';
 import config from '../config';
 import logger from '../logger';
-import { MempoolTransactionExtended, MempoolBlockWithTransactions } from '../mempool.interfaces';
+import { MempoolTransactionExtended, MempoolBlockWithTransactions, TransactionExtended } from '../mempool.interfaces';
+import { Common } from './common';
 import rbfCache from './rbf-cache';
 import transactionUtils from './transaction-utils';
 
@@ -21,6 +21,36 @@ export interface AuditResult {
 }
 
 class Audit {
+  /**
+   * Block health score based on non-spam transaction weight share.
+   * Does not require mempool sync or a projected block template.
+   */
+  public computeSpamHealth(transactions: TransactionExtended[], height?: number): number {
+    if (!transactions?.length) {
+      return 100;
+    }
+
+    Common.classifyTransactions(transactions, height);
+
+    let spamWeight = 0;
+    let blkWeight = 0;
+    for (const tx of transactions) {
+      blkWeight += tx.weight || 0;
+    }
+    for (let i = 1; i < transactions.length; i++) {
+      if (transactions[i].spam) {
+        spamWeight += transactions[i].weight || 0;
+      }
+    }
+
+    if (!blkWeight) {
+      return 100;
+    }
+
+    const score = 1 - (spamWeight / blkWeight);
+    return Math.round(score * 100 * 100) / 100;
+  }
+
   auditBlock(
     height: number,
     transactions: MempoolTransactionExtended[],
@@ -45,10 +75,6 @@ class Audit {
     let displacedWeight = 0;
     let matchedWeight = 0;
     let projectedWeight = 0;
-
-    let countCb = 0;
-    let spamWeight = 0;
-    let blkWeight = 0;
 
     const inBlock = {};
     const inTemplate = {};
@@ -94,21 +120,6 @@ class Audit {
       matchedWeight += transactions[0].weight;
     }
 
-
-    for (const tx of transactions){
-      blkWeight += tx.weight;
-    }
-
-    for (const tx of transactions){
-      if (countCb !== 0){
-        if(tx.spam !== undefined){
-          if (tx.spam == true){
-            spamWeight += tx.weight;
-          }
-        }
-      }
-      countCb += 1;
-    }
 
     // we can expect an honest miner to include 'displaced' transactions in place of recent arrivals and censored txs
     // these displaced transactions should occupy the first N weight units of the next projected block
@@ -204,14 +215,8 @@ class Audit {
       index--;
     }
 
-    const numCensored = Object.keys(isCensored).length;
-    const numMatches = matches.length - 1; // adjust for coinbase tx
-    let score = 0;
-
-    score = (Math.abs((spamWeight/blkWeight)-1));
     const similarity = projectedWeight ? matchedWeight / projectedWeight : 1;
-
-    const matchRate = Math.round(score * 100 * 100) / 100;
+    const matchRate = this.computeSpamHealth(transactions, height);
 
     return {
       unseen,

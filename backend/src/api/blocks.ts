@@ -36,6 +36,7 @@ import { AsertAnchor, difficultyChangeFromBits } from './asert';
 import AccelerationRepository from '../repositories/AccelerationRepository';
 import { calculateGoodBlockCpfp } from './cpfp';
 import blockProcessor, { BlockProcessingResult, detectTemplateAlgorithm, saveCpfpDataToCpfpSummary } from './block-processor';
+import Audit from './audit';
 import mempool from './mempool';
 import CpfpRepository from '../repositories/CpfpRepository';
 import { parseDATUMTemplateCreator } from '../utils/bitcoin-script';
@@ -421,10 +422,12 @@ class Blocks {
       extras.expectedWeight = null;
       if (config.MEMPOOL.AUDIT) {
         const auditScore = await BlocksAuditsRepository.$getBlockAuditScore(block.id);
-        if (auditScore != null) {
+        if (auditScore?.matchRate != null) {
           extras.matchRate = auditScore.matchRate;
-          extras.expectedFees = auditScore.expectedFees;
-          extras.expectedWeight = auditScore.expectedWeight;
+          extras.expectedFees = auditScore.expectedFees ?? null;
+          extras.expectedWeight = auditScore.expectedWeight ?? null;
+        } else if (transactions.length > 1) {
+          extras.matchRate = Audit.computeSpamHealth(transactions, block.height);
         }
       }
 
@@ -687,6 +690,26 @@ class Blocks {
         expectedWeight: processingResult.auditResult.expectedWeight,
       });
       this.updateTimerProgress(timer, `saved audit results for ${this.currentBlockHeight}`);
+    } else if (config.MEMPOOL.AUDIT && blockExtended.extras?.matchRate != null) {
+      void BlocksAuditsRepository.$saveAudit({
+        version: 1,
+        templateAlgorithm: processingResult.templateAlgorithm,
+        time: blockExtended.timestamp,
+        height: blockExtended.height,
+        hash: blockExtended.id,
+        unseenTxs: [],
+        addedTxs: [],
+        prioritizedTxs: [],
+        missingTxs: [],
+        freshTxs: [],
+        sigopTxs: [],
+        fullrbfTxs: [],
+        acceleratedTxs: [],
+        matchRate: blockExtended.extras.matchRate,
+        expectedFees: undefined,
+        expectedWeight: undefined,
+      });
+      this.updateTimerProgress(timer, `saved block health for ${this.currentBlockHeight}`);
     }
   }
 
@@ -1796,6 +1819,14 @@ class Blocks {
         if (block.extras) {
           // Always recompute from version bit (not cached value) to avoid stale data
           block.extras.bip110Signaling = Common.isSignalingBIP110(block.version);
+          if (config.MEMPOOL.AUDIT && block.extras.matchRate == null) {
+            const auditScore = await BlocksAuditsRepository.$getBlockAuditScore(block.id);
+            if (auditScore?.matchRate != null) {
+              block.extras.matchRate = auditScore.matchRate;
+              block.extras.expectedFees = auditScore.expectedFees ?? null;
+              block.extras.expectedWeight = auditScore.expectedWeight ?? null;
+            }
+          }
         }
         returnBlocks.push(block);
       } else {

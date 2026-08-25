@@ -235,6 +235,8 @@ export interface BlockExtension {
   feeRange?: number[];
   reward?: number;
   coinbaseRaw?: string;
+  coinbaseAddress?: string | null;
+  coinbaseAddresses?: string[] | null;
   matchRate?: number;
   expectedFees?: number;
   expectedWeight?: number;

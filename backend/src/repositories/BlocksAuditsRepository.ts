@@ -183,7 +183,7 @@ class BlocksAuditRepositories {
         FROM blocks_audits
         WHERE blocks_audits.hash = ?
       `, [hash]);
-      return rows[0];
+      return rows[0] ?? null;
     } catch (e: any) {
       logger.err(`Cannot fetch block audit from db. Reason: ` + (e instanceof Error ? e.message : e));
       throw e;

@@ -33,15 +33,20 @@
             <a [routerLink]="['/block' | relativeUrl, block.id]" [state]="{ data: { block: block } }">{{ block.height }}</a>
           </td>
           <td  *ngIf="isMempoolModule" class="pool text-start" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
-            <div *ngIf="indexingAvailable" class="tooltip-custom">
-              <a class="clear-link" [routerLink]="['/mining/pool' | relativeUrl, block.extras.pool.slug]">
+            <div class="pool-cell">
+              <div *ngIf="indexingAvailable" class="tooltip-custom pool-name-row">
+                <a class="clear-link" [routerLink]="['/mining/pool' | relativeUrl, block.extras.pool.slug]">
+                  <app-mining-pool [slug]="block.extras.pool.slug" [name]="block.extras.pool.name" [logoStyle]="'width:22px;height:22px;'" [textClass]="'truncate'"></app-mining-pool>
+                </a>
+                <span *ngIf="!widget" class="tooltiptext badge bg-secondary scriptmessage">{{ block.extras.coinbaseRaw | hex2ascii }}</span>
+              </div>
+              <div *ngIf="!indexingAvailable" class="tooltip-custom pool-name-row">
                 <app-mining-pool [slug]="block.extras.pool.slug" [name]="block.extras.pool.name" [logoStyle]="'width:22px;height:22px;'" [textClass]="'truncate'"></app-mining-pool>
-              </a>
-              <span *ngIf="!widget" class="tooltiptext badge bg-secondary scriptmessage">{{ block.extras.coinbaseRaw | hex2ascii }}</span>
-            </div>
-            <div *ngIf="!indexingAvailable" class="tooltip-custom">
-                <app-mining-pool [slug]="block.extras.pool.slug" [name]="block.extras.pool.name" [logoStyle]="'width:22px;height:22px;'" [textClass]="'truncate'"></app-mining-pool>
-              <span *ngIf="!widget" class="tooltiptext badge bg-secondary scriptmessage">{{ block.extras.coinbaseRaw | hex2ascii }}</span>
+                <span *ngIf="!widget" class="tooltiptext badge bg-secondary scriptmessage">{{ block.extras.coinbaseRaw | hex2ascii }}</span>
+              </div>
+              <div *ngIf="block.extras?.coinbaseAddress" class="pool-reward-address">
+                <app-address-text [address]="block.extras.coinbaseAddress"></app-address-text>
+              </div>
             </div>
           </td>
           <td class="timestamp" *ngIf="!widget" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
