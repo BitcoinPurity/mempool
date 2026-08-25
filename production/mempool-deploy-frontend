@@ -224,8 +224,12 @@ acquire_lock() {
 }
 
 migrate_legacy_docroot_if_needed() {
-  # First run: if DOCROOT is a real directory (legacy rsync target), move it into releases.
+  # First run: if DOCROOT is a real directory (legacy rsync/build target), move it into releases.
   if [[ -d "${DOCROOT}" && ! -L "${DOCROOT}" ]]; then
+    if (( DRY_RUN )); then
+      log "Dry-run: would migrate existing directory ${DOCROOT} -> ${RELEASES_DIR}/legacy-... (skipped)"
+      return
+    fi
     local stamp
     stamp="legacy-$(date +%Y%m%d-%H%M%S)"
     log "Migrating existing directory ${DOCROOT} -> ${RELEASES_DIR}/${stamp}"
@@ -285,18 +289,28 @@ build_frontend() {
 
   cd "${fe}"
 
+  # mempool-frontend-config.json is gitignored; resolve from --config, live checkout, or samples.
+  local resolved=""
   if [[ -n "${FRONTEND_CONFIG}" ]]; then
-    [[ -f "${FRONTEND_CONFIG}" ]] || die "Config not found: ${FRONTEND_CONFIG}"
-    cp "${FRONTEND_CONFIG}" ./mempool-frontend-config.json
-  elif [[ ! -f ./mempool-frontend-config.json ]]; then
-    if [[ -f "${REPO}/production/mempool-frontend-config.${SITE}.json" ]]; then
-      cp "${REPO}/production/mempool-frontend-config.${SITE}.json" ./mempool-frontend-config.json
-    elif [[ -f ./mempool-frontend-config.sample.json ]]; then
-      cp ./mempool-frontend-config.sample.json ./mempool-frontend-config.json
-    else
-      die "No mempool-frontend-config.json (pass --config)"
-    fi
+    [[ -f "${FRONTEND_CONFIG}" ]] || die "Config not found: ${FRONTEND_CONFIG}
+Hint: file is gitignored. Use e.g.:
+  --config ${REPO}/production/mempool-frontend-config.mainnet.json
+or copy sample:
+  cp ${REPO}/frontend/mempool-frontend-config.sample.json ${REPO}/frontend/mempool-frontend-config.json"
+    resolved="${FRONTEND_CONFIG}"
+  elif [[ -f "${REPO}/frontend/mempool-frontend-config.json" ]]; then
+    resolved="${REPO}/frontend/mempool-frontend-config.json"
+  elif [[ -f "${REPO}/production/mempool-frontend-config.${SITE}.json" ]]; then
+    resolved="${REPO}/production/mempool-frontend-config.${SITE}.json"
+  elif [[ "${SITE}" == "browser" && -f "${REPO}/production/mempool-frontend-config.mainnet.json" ]]; then
+    resolved="${REPO}/production/mempool-frontend-config.mainnet.json"
+  elif [[ -f "${fe}/mempool-frontend-config.sample.json" ]]; then
+    resolved="${fe}/mempool-frontend-config.sample.json"
+  else
+    die "No mempool-frontend-config.json (pass --config)"
   fi
+  log "Using frontend config ${resolved}"
+  cp "${resolved}" ./mempool-frontend-config.json
 
   log "npm ci (nice=${NICE_LEVEL})"
   run_nicely npm ci --omit=optional

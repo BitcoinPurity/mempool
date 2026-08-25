@@ -324,7 +324,7 @@ cd /opt/mempool
   --repo /opt/mempool \
   --ref origin/main \
   --public-html /opt/mempool/frontend/dist/mempool \
-  --config /opt/mempool/frontend/mempool-frontend-config.json \
+  --config /opt/mempool/production/mempool-frontend-config.mainnet.json \
   --dry-run
 
 ./production/mempool-deploy-frontend \
@@ -332,7 +332,15 @@ cd /opt/mempool
   --repo /opt/mempool \
   --ref origin/main \
   --public-html /opt/mempool/frontend/dist/mempool \
-  --config /opt/mempool/frontend/mempool-frontend-config.json
+  --config /opt/mempool/production/mempool-frontend-config.mainnet.json
+```
+
+`mempool-frontend-config.json` under `frontend/` is gitignored, so it often does not exist on the server. Prefer `production/mempool-frontend-config.mainnet.json`, or create a local config:
+
+```bash
+cp /opt/mempool/frontend/mempool-frontend-config.sample.json \
+   /opt/mempool/frontend/mempool-frontend-config.json
+# edit as needed, then omit --config (script will pick up the live checkout file)
 ```
 
 Parameter mapping:
