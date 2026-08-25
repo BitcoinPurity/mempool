@@ -2,32 +2,40 @@
 # Bare-metal nginx frontend deploy: build off the live docroot, then atomically
 # flip a symlink so long builds never serve a half-written tree.
 #
-# Layout (example for SITE=mainnet, PUBLIC_HTML_ROOT=$HOME/public_html):
+# Paths are NOT fixed to /mempool — that was only the upstream mempool.space layout.
+# Defaults use $HOME; override with --repo / --public-html / --config for your host.
+#
+# Layout (SITE=mainnet, PUBLIC_HTML_ROOT=$HOME/public_html):
 #   $PUBLIC_HTML_ROOT/mainnet-releases/<timestamp>-<sha>/
 #   $PUBLIC_HTML_ROOT/mainnet -> mainnet-releases/<timestamp>-<sha>
 #
-# nginx keeps pointing at the symlink path, e.g.:
-#   root /mempool/public_html/mainnet/;
+# Point nginx root at the symlink path you actually use, e.g.:
+#   root /home/YOU/public_html/mainnet/;
 #
 # Usage:
 #   ./production/mempool-deploy-frontend [options]
 #
 # Options / env:
-#   --site NAME              Site name (default: mainnet). Docroot becomes $PUBLIC_HTML_ROOT/$SITE
-#   --repo PATH              Git checkout used as build source (default: $HOME/mempool or cwd repo root)
-#   --ref REF                Git ref to build (default: HEAD of --repo; use origin/main etc. to fetch)
-#   --config PATH            mempool-frontend-config.json to copy into frontend/ before build
+#   --site NAME              Site name (default: mainnet). Docroot = $PUBLIC_HTML_ROOT/$SITE
+#   --repo PATH              Git checkout with frontend/ (default: $HOME/mempool or cwd)
+#   --ref REF                Git ref to build (default: HEAD; e.g. origin/main)
+#   --config PATH            mempool-frontend-config.json for the build
 #   --public-html PATH       Parent of site docroot (default: $HOME/public_html)
-#   --keep N                 Number of releases to retain (default: 5)
-#   --build-dir PATH         Scratch build directory (default: $HOME/mempool-frontend-build)
-#   --skip-fetch             Do not git fetch/reset; build current working tree as-is
-#   --dry-run                Build + stage, but do not flip symlink
+#   --keep N                 Releases to retain (default: 5)
+#   --build-dir PATH         Scratch build dir (default: $HOME/mempool-frontend-build)
+#   --skip-fetch             Build current working tree without git fetch/reset
+#   --dry-run                Stage only; do not flip symlink
 #   --rollback [ID|prev]     Flip symlink to an existing release (default: previous)
 #
-# Examples:
+# Examples (replace paths with yours — inspect nginx "root" first):
 #   ./production/mempool-deploy-frontend --site mainnet --ref origin/main
+#   ./production/mempool-deploy-frontend \
+#     --site mainnet \
+#     --repo "$HOME/code/mempool" \
+#     --ref origin/main \
+#     --public-html "$HOME/public_html" \
+#     --config "$HOME/code/mempool/production/mempool-frontend-config.mainnet.json"
 #   ./production/mempool-deploy-frontend --rollback prev
-#   MEMPOOL_DEPLOY_NICE=19 ./production/mempool-deploy-frontend --site mainnet
 
 set -euo pipefail
 

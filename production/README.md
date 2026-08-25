@@ -289,6 +289,74 @@ Restart `nginx`:
 service nginx restart
 ```
 
+### Zero-downtime frontend deploy (bare-metal nginx)
+
+Long Angular builds must not write into the live docroot. Use `production/mempool-deploy-frontend`: build in a scratch worktree, stage a full release directory, then atomically flip a symlink.
+
+Paths are not fixed to `/mempool` (that was only the upstream mempool.space host layout). Match whatever nginx `root` you already use.
+
+#### Layout when nginx serves the in-tree dist
+
+If your nginx config has:
+
+```nginx
+root /opt/mempool/frontend/dist/mempool/browser;
+```
+
+and the git checkout is `/opt/mempool`, use:
+
+```text
+/opt/mempool/frontend/dist/mempool/
+├── browser-releases/<timestamp>-<sha>/   # full build output
+└── browser -> browser-releases/...       # nginx root (symlink)
+```
+
+No nginx path change is required: `root` still points at `.../browser`, which becomes a symlink after the first deploy.
+
+#### Deploy
+
+```bash
+cd /opt/mempool
+
+# Optional: stage only, do not flip the live symlink
+./production/mempool-deploy-frontend \
+  --site browser \
+  --repo /opt/mempool \
+  --ref origin/main \
+  --public-html /opt/mempool/frontend/dist/mempool \
+  --config /opt/mempool/frontend/mempool-frontend-config.json \
+  --dry-run
+
+./production/mempool-deploy-frontend \
+  --site browser \
+  --repo /opt/mempool \
+  --ref origin/main \
+  --public-html /opt/mempool/frontend/dist/mempool \
+  --config /opt/mempool/frontend/mempool-frontend-config.json
+```
+
+Parameter mapping:
+
+| Flag | Meaning for this host |
+|------|------------------------|
+| `--site browser` | Docroot = `$PUBLIC_HTML/browser` (matches nginx `root`) |
+| `--repo` | Git checkout that contains `frontend/` |
+| `--public-html` | Parent of the `browser` docroot |
+| `--config` | Frontend config JSON used for the build |
+
+On first run, if `browser` is still a normal directory (legacy in-place build), the script moves it to `browser-releases/legacy-...` and replaces it with a symlink.
+
+#### Rollback
+
+```bash
+./production/mempool-deploy-frontend \
+  --site browser \
+  --public-html /opt/mempool/frontend/dist/mempool \
+  --rollback prev
+```
+
+By default the last 5 releases are kept (`--keep N`). Builds run under `nice`/`ionice` so they compete less with nginx.
+
 ### Done
 
 If everything went well, your site should look like the one at https://mempool.space/.
