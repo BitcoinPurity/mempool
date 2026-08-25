@@ -313,7 +313,11 @@ or copy sample:
   cp "${resolved}" ./mempool-frontend-config.json
 
   log "npm ci (nice=${NICE_LEVEL})"
-  run_nicely npm ci --omit=optional
+  # Prefer a clean lockfile install; fall back if npm/lockfile versions disagree.
+  if ! run_nicely npm ci --omit=optional; then
+    log "npm ci failed; falling back to npm install --omit=optional"
+    run_nicely npm install --omit=optional
+  fi
 
   log "npm run build (this can take a long time; live site stays on previous release)"
   run_nicely npm run build
