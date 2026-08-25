@@ -160,10 +160,14 @@ prune_releases() {
 
 smoke_check() {
   local dir="$1"
-  [[ -f "${dir}/index.html" ]] || die "Missing index.html in ${dir}"
-  # Localized builds use en-US/index.html; plain builds use top-level index.html only.
-  if [[ -d "${dir}/en-US" ]]; then
-    [[ -f "${dir}/en-US/index.html" ]] || die "Missing en-US/index.html in ${dir}"
+  # `npm run build --localize` writes locale folders (en-US/index.html), not a top-level index.html.
+  if [[ -f "${dir}/index.html" ]]; then
+    :
+  elif [[ -f "${dir}/en-US/index.html" ]]; then
+    log "Localized build detected (en-US/index.html)"
+  else
+    die "Missing index.html (expected ${dir}/index.html or ${dir}/en-US/index.html). Contents:
+$(ls -la "${dir}" | head -40)"
   fi
   [[ -d "${dir}/resources" ]] || log "WARN: no resources/ directory in ${dir}"
 }
