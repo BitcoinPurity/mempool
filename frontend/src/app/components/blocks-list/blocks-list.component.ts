@@ -108,7 +108,7 @@ export class BlocksList implements OnInit {
       });
     }
 
-    this.skeletonLines = this.widget === true ? [...Array(6).keys()] : [...Array(15).keys()];
+    this.skeletonLines = this.widget === true ? [...Array(10).keys()] : [...Array(15).keys()];
     this.paginationMaxSize = window.matchMedia('(max-width: 670px)').matches ? 3 : 5;
 
     this.blocks$ = combineLatest([
@@ -136,7 +136,7 @@ export class BlocksList implements OnInit {
                   }
                 }
                 if (this.widget) {
-                  return blocks.slice(0, 6);
+                  return blocks.slice(0, 10);
                 }
                 return blocks;
               }),
@@ -169,7 +169,7 @@ export class BlocksList implements OnInit {
                 blocks[1][0].extras.pool.slug + '.svg';
             }
             acc.unshift(blocks[1][0]);
-            acc = acc.slice(0, this.widget ? 6 : 15);
+            acc = acc.slice(0, this.widget ? 10 : 15);
           }
           return acc;
         }, []),

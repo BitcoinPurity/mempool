@@ -53,7 +53,7 @@ export class DifficultyAdjustmentsTable implements OnInit {
             });
           }
           this.isLoading = false;
-          return tableData.slice(0, 6);
+          return tableData.slice(0, 10);
         }),
       );
   }

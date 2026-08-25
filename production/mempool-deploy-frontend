@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+# Bare-metal nginx frontend deploy: build off the live docroot, then atomically
+# flip a symlink so long builds never serve a half-written tree.
+#
+# Layout (example for SITE=mainnet, PUBLIC_HTML_ROOT=$HOME/public_html):
+#   $PUBLIC_HTML_ROOT/mainnet-releases/<timestamp>-<sha>/
+#   $PUBLIC_HTML_ROOT/mainnet -> mainnet-releases/<timestamp>-<sha>
+#
+# nginx keeps pointing at the symlink path, e.g.:
+#   root /mempool/public_html/mainnet/;
+#
+# Usage:
+#   ./production/mempool-deploy-frontend [options]
+#
+# Options / env:
+#   --site NAME              Site name (default: mainnet). Docroot becomes $PUBLIC_HTML_ROOT/$SITE
+#   --repo PATH              Git checkout used as build source (default: $HOME/mempool or cwd repo root)
+#   --ref REF                Git ref to build (default: HEAD of --repo; use origin/main etc. to fetch)
+#   --config PATH            mempool-frontend-config.json to copy into frontend/ before build
+#   --public-html PATH       Parent of site docroot (default: $HOME/public_html)
+#   --keep N                 Number of releases to retain (default: 5)
+#   --build-dir PATH         Scratch build directory (default: $HOME/mempool-frontend-build)
+#   --skip-fetch             Do not git fetch/reset; build current working tree as-is
+#   --dry-run                Build + stage, but do not flip symlink
+#   --rollback [ID|prev]     Flip symlink to an existing release (default: previous)
+#
+# Examples:
+#   ./production/mempool-deploy-frontend --site mainnet --ref origin/main
+#   ./production/mempool-deploy-frontend --rollback prev
+#   MEMPOOL_DEPLOY_NICE=19 ./production/mempool-deploy-frontend --site mainnet
+
+set -euo pipefail
+
+SITE="${MEMPOOL_DEPLOY_SITE:-mainnet}"
+REPO="${MEMPOOL_DEPLOY_REPO:-}"
+REF="${MEMPOOL_DEPLOY_REF:-}"
+FRONTEND_CONFIG="${MEMPOOL_DEPLOY_CONFIG:-}"
+PUBLIC_HTML_ROOT="${MEMPOOL_DEPLOY_PUBLIC_HTML:-${HOME}/public_html}"
+KEEP="${MEMPOOL_DEPLOY_KEEP:-5}"
+BUILD_ROOT="${MEMPOOL_DEPLOY_BUILD_DIR:-${HOME}/mempool-frontend-build}"
+SKIP_FETCH=0
+DRY_RUN=0
+ROLLBACK=""
+NICE_LEVEL="${MEMPOOL_DEPLOY_NICE:-19}"
+IONICE_CLASS="${MEMPOOL_DEPLOY_IONICE:-3}"
+
+usage() {
+  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --site) SITE="$2"; shift 2 ;;
+    --repo) REPO="$2"; shift 2 ;;
+    --ref) REF="$2"; shift 2 ;;
+    --config) FRONTEND_CONFIG="$2"; shift 2 ;;
+    --public-html) PUBLIC_HTML_ROOT="$2"; shift 2 ;;
+    --keep) KEEP="$2"; shift 2 ;;
+    --build-dir) BUILD_ROOT="$2"; shift 2 ;;
+    --skip-fetch) SKIP_FETCH=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --rollback)
+      if [[ $# -ge 2 && "$2" != --* ]]; then
+        ROLLBACK="$2"
+        shift 2
+      else
+        ROLLBACK="prev"
+        shift
+      fi
+      ;;
+    -h|--help) usage 0 ;;
+    *) echo "Unknown option: $1" >&2; usage 1 ;;
+  esac
+done
+
+log() { printf '[*] %s\n' "$*"; }
+die() { printf '[!] %s\n' "$*" >&2; exit 1; }
+
+resolve_repo() {
+  if [[ -n "${REPO}" ]]; then
+    [[ -d "${REPO}/.git" || -f "${REPO}/.git" ]] || die "Not a git repo: ${REPO}"
+    return
+  fi
+  if [[ -d "${HOME}/mempool/.git" ]]; then
+    REPO="${HOME}/mempool"
+  elif [[ -d "$(pwd)/.git" && -d "$(pwd)/frontend" ]]; then
+    REPO="$(pwd)"
+  elif [[ -d "$(pwd)/../.git" && -d "$(pwd)/../frontend" ]]; then
+    REPO="$(cd .. && pwd)"
+  else
+    die "Set --repo to the mempool git checkout (expected frontend/ under it)"
+  fi
+}
+
+DOCROOT="${PUBLIC_HTML_ROOT}/${SITE}"
+RELEASES_DIR="${PUBLIC_HTML_ROOT}/${SITE}-releases"
+LOCKFILE="${PUBLIC_HTML_ROOT}/.${SITE}-frontend-deploy.lock"
+WORKTREE="${BUILD_ROOT}/worktree-${SITE}"
+
+run_nicely() {
+  if command -v ionice >/dev/null 2>&1; then
+    nice -n "${NICE_LEVEL}" ionice -c "${IONICE_CLASS}" "$@"
+  else
+    nice -n "${NICE_LEVEL}" "$@"
+  fi
+}
+
+atomic_symlink() {
+  local target="$1"
+  local linkpath="$2"
+  local tmp="${linkpath}.new.$$"
+  ln -sfn "${target}" "${tmp}"
+  mv -Tf "${tmp}" "${linkpath}"
+}
+
+current_target() {
+  if [[ -L "${DOCROOT}" ]]; then
+    readlink -f "${DOCROOT}" || readlink "${DOCROOT}"
+  elif [[ -d "${DOCROOT}" ]]; then
+    printf '%s\n' "${DOCROOT}"
+  else
+    printf '\n'
+  fi
+}
+
+list_releases() {
+  # newest first (GNU find -printf; Linux bare-metal)
+  if [[ ! -d "${RELEASES_DIR}" ]]; then
+    return
+  fi
+  if find --version >/dev/null 2>&1; then
+    find "${RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r
+  else
+    # BSD find fallback
+    find "${RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -r
+  fi
+}
+
+prune_releases() {
+  local keep="$1"
+  local id
+  local i=0
+  while IFS= read -r id; do
+    i=$((i + 1))
+    if (( i > keep )); then
+      log "Pruning old release ${id}"
+      rm -rf "${RELEASES_DIR}/${id}"
+    fi
+  done < <(list_releases)
+}
+
+smoke_check() {
+  local dir="$1"
+  [[ -f "${dir}/index.html" ]] || die "Missing index.html in ${dir}"
+  # Localized builds use en-US/index.html; plain builds use top-level index.html only.
+  if [[ -d "${dir}/en-US" ]]; then
+    [[ -f "${dir}/en-US/index.html" ]] || die "Missing en-US/index.html in ${dir}"
+  fi
+  [[ -d "${dir}/resources" ]] || log "WARN: no resources/ directory in ${dir}"
+}
+
+do_rollback() {
+  local want="${ROLLBACK}"
+  local ids=()
+  local id
+  while IFS= read -r id; do
+    [[ -n "${id}" ]] && ids+=("${id}")
+  done < <(list_releases)
+  ((${#ids[@]} > 0)) || die "No releases in ${RELEASES_DIR}"
+
+  local target_id=""
+  if [[ "${want}" == "prev" || "${want}" == "previous" ]]; then
+    local cur
+    cur="$(basename "$(current_target)" 2>/dev/null || true)"
+    if [[ -n "${cur}" && -d "${RELEASES_DIR}/${cur}" ]]; then
+      local found=0
+      for id in "${ids[@]}"; do
+        if (( found )); then
+          target_id="${id}"
+          break
+        fi
+        [[ "${id}" == "${cur}" ]] && found=1
+      done
+      [[ -n "${target_id}" ]] || die "No previous release before current (${cur})"
+    else
+      target_id="${ids[1]:-}"
+      [[ -n "${target_id}" ]] || die "Need at least 2 releases to rollback"
+    fi
+  else
+    [[ -d "${RELEASES_DIR}/${want}" ]] || die "Release not found: ${want}"
+    target_id="${want}"
+  fi
+
+  log "Rolling back ${SITE} -> ${target_id}"
+  if (( DRY_RUN )); then
+    log "Dry-run: would point ${DOCROOT} -> ${RELEASES_DIR}/${target_id}"
+    exit 0
+  fi
+  atomic_symlink "${RELEASES_DIR}/${target_id}" "${DOCROOT}"
+  log "Now serving $(readlink "${DOCROOT}")"
+}
+
+acquire_lock() {
+  mkdir -p "${PUBLIC_HTML_ROOT}"
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"${LOCKFILE}"
+    flock -n 9 || die "Another deploy is running (lock: ${LOCKFILE})"
+  else
+    if [[ -e "${LOCKFILE}" ]]; then
+      die "Lockfile exists: ${LOCKFILE}"
+    fi
+    echo $$ >"${LOCKFILE}"
+    trap 'rm -f "${LOCKFILE}"' EXIT INT TERM
+  fi
+}
+
+migrate_legacy_docroot_if_needed() {
+  # First run: if DOCROOT is a real directory (legacy rsync target), move it into releases.
+  if [[ -d "${DOCROOT}" && ! -L "${DOCROOT}" ]]; then
+    local stamp
+    stamp="legacy-$(date +%Y%m%d-%H%M%S)"
+    log "Migrating existing directory ${DOCROOT} -> ${RELEASES_DIR}/${stamp}"
+    mkdir -p "${RELEASES_DIR}"
+    mv "${DOCROOT}" "${RELEASES_DIR}/${stamp}"
+    atomic_symlink "${RELEASES_DIR}/${stamp}" "${DOCROOT}"
+  fi
+  mkdir -p "${RELEASES_DIR}"
+}
+
+prepare_worktree() {
+  resolve_repo
+  mkdir -p "${BUILD_ROOT}"
+  cd "${REPO}"
+
+  local sha
+  if (( SKIP_FETCH )); then
+    sha="$(git rev-parse HEAD)"
+    log "Building working tree at ${REPO} @ ${sha} (--skip-fetch)"
+    rm -rf "${WORKTREE}"
+    mkdir -p "${WORKTREE}"
+    # Copy tracked+untracked needed files without .git noise via archive of HEAD,
+    # then overlay dirty frontend config if present.
+    git archive HEAD | tar -x -C "${WORKTREE}"
+  else
+    local ref="${REF:-HEAD}"
+    log "Fetching in ${REPO}"
+    git fetch --tags --prune origin || true
+    if [[ "${ref}" == HEAD ]]; then
+      sha="$(git rev-parse HEAD)"
+    elif git rev-parse --verify -q "${ref}" >/dev/null; then
+      sha="$(git rev-parse "${ref}")"
+    elif git rev-parse --verify -q "origin/${ref}" >/dev/null; then
+      sha="$(git rev-parse "origin/${ref}")"
+      ref="origin/${ref}"
+    else
+      die "Cannot resolve ref: ${REF}"
+    fi
+    log "Using ${ref} -> ${sha}"
+    rm -rf "${WORKTREE}"
+    git worktree prune 2>/dev/null || true
+    # Prefer worktree; fall back to archive if worktree fails (e.g. ref already checked out)
+    if ! git worktree add --detach "${WORKTREE}" "${sha}"; then
+      log "worktree add failed; falling back to git archive"
+      mkdir -p "${WORKTREE}"
+      git archive "${sha}" | tar -x -C "${WORKTREE}"
+    fi
+  fi
+
+  BUILD_SHA="$(git -C "${REPO}" rev-parse "${sha:-HEAD}" 2>/dev/null || git -C "${WORKTREE}" rev-parse HEAD 2>/dev/null || echo unknown)"
+  export BUILD_SHA
+}
+
+build_frontend() {
+  local fe="${WORKTREE}/frontend"
+  [[ -d "${fe}" ]] || die "No frontend/ in build tree ${WORKTREE}"
+
+  cd "${fe}"
+
+  if [[ -n "${FRONTEND_CONFIG}" ]]; then
+    [[ -f "${FRONTEND_CONFIG}" ]] || die "Config not found: ${FRONTEND_CONFIG}"
+    cp "${FRONTEND_CONFIG}" ./mempool-frontend-config.json
+  elif [[ ! -f ./mempool-frontend-config.json ]]; then
+    if [[ -f "${REPO}/production/mempool-frontend-config.${SITE}.json" ]]; then
+      cp "${REPO}/production/mempool-frontend-config.${SITE}.json" ./mempool-frontend-config.json
+    elif [[ -f ./mempool-frontend-config.sample.json ]]; then
+      cp ./mempool-frontend-config.sample.json ./mempool-frontend-config.json
+    else
+      die "No mempool-frontend-config.json (pass --config)"
+    fi
+  fi
+
+  log "npm ci (nice=${NICE_LEVEL})"
+  run_nicely npm ci --omit=optional
+
+  log "npm run build (this can take a long time; live site stays on previous release)"
+  run_nicely npm run build
+
+  [[ -d ./dist/mempool/browser ]] || die "Build output missing: dist/mempool/browser"
+}
+
+stage_and_flip() {
+  local stamp
+  stamp="$(date +%Y%m%d-%H%M%S)-${BUILD_SHA:0:12}"
+  local dest="${RELEASES_DIR}/${stamp}"
+
+  log "Staging ${dest}"
+  mkdir -p "${dest}"
+  rsync -a --delete "${WORKTREE}/frontend/dist/mempool/browser/" "${dest}/"
+  printf '%s\n' "${BUILD_SHA}" >"${dest}/.git-revision"
+  date -u +%Y-%m-%dT%H:%M:%SZ >"${dest}/.built-at"
+  smoke_check "${dest}"
+
+  if (( DRY_RUN )); then
+    log "Dry-run: staged ${dest}; not flipping ${DOCROOT}"
+    return
+  fi
+
+  log "Atomic switch ${DOCROOT} -> ${dest}"
+  atomic_symlink "${dest}" "${DOCROOT}"
+  log "Now serving $(readlink "${DOCROOT}")"
+  prune_releases "${KEEP}"
+}
+
+cleanup_worktree() {
+  if [[ -d "${WORKTREE}/.git" ]] || git -C "${REPO}" worktree list 2>/dev/null | grep -q "${WORKTREE}"; then
+    git -C "${REPO}" worktree remove --force "${WORKTREE}" 2>/dev/null || rm -rf "${WORKTREE}"
+  else
+    rm -rf "${WORKTREE}"
+  fi
+}
+
+main() {
+  acquire_lock
+  migrate_legacy_docroot_if_needed
+
+  if [[ -n "${ROLLBACK}" ]]; then
+    do_rollback
+    exit 0
+  fi
+
+  prepare_worktree
+  build_frontend
+  stage_and_flip
+  cleanup_worktree
+  log "Done."
+}
+
+main

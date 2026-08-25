@@ -4,13 +4,10 @@
     <div class="card-body more-padding">
       <div class="difficulty-adjustment-container" *ngIf="(isLoadingWebSocket$ | async) === false && (difficultyEpoch$ | async) as epochData; else loadingDifficulty">
         <div class="item">
-          <h5 class="card-title" i18n="difficulty-box.remaining">Remaining</h5>
+          <h5 class="card-title" i18n="block.difficulty">Difficulty</h5>
           <div class="card-text">
-            <ng-container *ngTemplateOutlet="epochData.remainingBlocks === 1 ? blocksSingular : blocksPlural; context: {$implicit: epochData.remainingBlocks }"></ng-container>
-            <ng-template #blocksPlural let-i i18n="shared.blocks">{{ i }} <span class="shared-block">blocks</span></ng-template>
-            <ng-template #blocksSingular let-i i18n="shared.block">{{ i }} <span class="shared-block">block</span></ng-template>
+            {{ epochData.difficulty | amountShortener : 2 }}
           </div>
-          <div class="symbol"><app-time kind="until" [time]="epochData.estimatedRetargetDate" [fastRender]="true" [precision]="1"></app-time></div>
         </div>
         <div class="item">
           <h5 class="card-title" i18n="difficulty-box.estimate">Estimate</h5>
@@ -71,7 +68,7 @@
 <ng-template #loadingDifficulty>
   <div class="difficulty-skeleton loading-container">
     <div class="item">
-      <h5 class="card-title" i18n="difficulty-box.remaining">Remaining</h5>
+      <h5 class="card-title" i18n="block.difficulty">Difficulty</h5>
       <div class="card-text">
         <div class="skeleton-loader"></div>
         <div class="skeleton-loader"></div>

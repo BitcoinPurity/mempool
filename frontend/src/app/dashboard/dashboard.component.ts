@@ -9,7 +9,6 @@ import { WebsocketService } from '@app/services/websocket.service';
 import { SeoService } from '@app/services/seo.service';
 import { ActiveFilter, FilterMode, GradientMode, toFlags } from '@app/shared/filters.utils';
 import { detectWebGL } from '@app/shared/graphs.utils';
-import { BitnodesService } from '@app/services/bitnodes.service';
 
 interface MempoolBlocksData {
   blocks: number;
@@ -59,10 +58,6 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   expiredUtxos$: Observable<FederationUtxo[]>;
   emergencySpentUtxosStats$: Observable<any>;
   fullHistory$: Observable<any>;
-  knotsPercentage: number = 0;
-  bipPercentage: number = 0;
-  totalKnotsNodes: number = 0;
-  totalBitcoinNodes: number = 0;
   isLoad: boolean = true;
   filterSubscription: Subscription;
   mempoolInfoSubscription: Subscription;
@@ -80,7 +75,7 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
     { index: 0, name: $localize`:@@dfc3c34e182ea73c5d784ff7c8135f087992dac1:All`, mode: 'and', filters: [], gradient: 'age' },
     { index: 1, name: $localize`Consolidation`, mode: 'and', filters: ['consolidation'], gradient: 'fee' },
     { index: 2, name: $localize`Coinjoin`, mode: 'and', filters: ['coinjoin'], gradient: 'fee' },
-    { index: 3, name: $localize`Spam`, mode: 'or', filters: ['inscription', 'fake_pubkey', 'fake_scripthash', 'op_return', 'annex', 'opnet'], gradient: 'fee' },
+    { index: 3, name: $localize`OP_RETURN`, mode: 'and', filters: ['op_return'], gradient: 'fee' },
   ];
   goggleFlags = 0n;
   goggleMode: FilterMode = 'and';
@@ -94,7 +89,6 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
     private apiService: ApiService,
     private websocketService: WebsocketService,
     private seoService: SeoService,
-    private bitnodesService: BitnodesService,
     @Inject(PLATFORM_ID) private platformId: Object,
   ) {
     this.webGlEnabled = this.stateService.isBrowser && detectWebGL();
@@ -395,14 +389,6 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.currencySubscription = this.stateService.fiatCurrency$.subscribe((fiat) => {
       this.currency = fiat;
-    });
-
-    // Load Knots nodes data
-    this.bitnodesService.getKnotsNodeDistribution().subscribe(knotsData => {
-      this.knotsPercentage = knotsData.totals.percentageOfTotal;
-      this.totalKnotsNodes = knotsData.totals.totalNodes;
-      this.totalBitcoinNodes = Math.round(this.totalKnotsNodes / (this.knotsPercentage / 100));
-      this.bipPercentage = (knotsData.totals.bipCount * 100) / knotsData.totals.totalBitcoinNodes;
     });
   }
 

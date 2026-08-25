@@ -17,6 +17,7 @@ interface EpochProgress {
   timeUntilHalving: number;
   timeAvg: number;
   adjustedTimeAvg: number;
+  difficulty: number;
 }
 
 @Component({
@@ -49,7 +50,8 @@ export class DifficultyMiningComponent implements OnInit {
     ])
     .pipe(
       map(([blocks, da]) => {
-        const maxHeight = blocks.reduce((max, block) => Math.max(max, block.height), 0);
+        const tip = blocks.reduce((max, block) => block.height > max.height ? block : max, blocks[0]);
+        const maxHeight = tip.height;
         let colorAdjustments = 'var(--transparent-fg)';
         if (da.difficultyChange > 0) {
           colorAdjustments = 'var(--green)';
@@ -88,6 +90,7 @@ export class DifficultyMiningComponent implements OnInit {
           timeUntilHalving: this.timeUntilHalving,
           timeAvg: da.timeAvg,
           adjustedTimeAvg: da.adjustedTimeAvg,
+          difficulty: tip.difficulty,
         };
         return data;
       })
