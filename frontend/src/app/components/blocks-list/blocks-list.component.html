@@ -16,11 +16,11 @@
         <th *ngIf="isMempoolModule" class="pool text-start" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}" i18n="mining.pool-name"
           i18n-ngbTooltip="mining.pool-name" ngbTooltip="Pool" placement="bottom" #miningpool [disableTooltip]="!isEllipsisActive(miningpool)">Pool</th>
         <th class="timestamp" i18n="latest-blocks.timestamp" *ngIf="!widget" [class]="isMempoolModule ? '' : 'legacy'">Timestamp</th>
-        <th *ngIf="auditAvailable" class="health text-end" i18n="latest-blocks.health" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"
-          i18n-ngbTooltip="latest-blocks.health" ngbTooltip="Health" placement="bottom" #health [disableTooltip]="!isEllipsisActive(health)">Health</th>
+        <th *ngIf="indexingAvailable" class="health text-end" i18n="mining.luck" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"
+          i18n-ngbTooltip="mining.pool-luck-desc" ngbTooltip="Pool luck vs expected time since previous block from this pool (24h share). Above 100% means luckier than average." placement="bottom" #health [disableTooltip]="!isEllipsisActive(health)">Luck</th>
         <th *ngIf="isMempoolModule" class="reward text-end" i18n="latest-blocks.reward" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"
           i18n-ngbTooltip="latest-blocks.reward" ngbTooltip="Reward" placement="bottom" #reward [disableTooltip]="!isEllipsisActive(reward)">Reward</th>
-        <th *ngIf="isMempoolModule && !auditAvailable || isMempoolModule && !widget" class="fees text-end" i18n="latest-blocks.fees" [class]="isMempoolModule ? '' : 'legacy'">Fees</th>
+        <th *ngIf="isMempoolModule && !widget" class="fees text-end" i18n="latest-blocks.fees" [class]="isMempoolModule ? '' : 'legacy'">Fees</th>
         <th *ngIf="auditAvailable && !widget" class="fee-delta" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"></th>
         <th *ngIf="isMempoolModule" class="txs text-end" i18n="dashboard.txs" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}"
           i18n-ngbTooltip="dashboard.txs" ngbTooltip="TXs" placement="bottom" #txs [disableTooltip]="!isEllipsisActive(txs)">TXs</th>
@@ -52,24 +52,23 @@
           <td class="timestamp" *ngIf="!widget" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
             <app-timestamp [customFormat]="'yyyy-MM-dd HH:mm:ss'" [unixTime]="block.timestamp" [hideTimeSince]="true"></app-timestamp>
           </td>
-          <td *ngIf="auditAvailable" class="health text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
+          <td *ngIf="indexingAvailable" class="health text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
             <a
-              *ngIf="block?.extras?.matchRate != null; else nullHealth"
+              *ngIf="block?.extras?.poolLuck != null; else nullLuck"
               class="health-badge badge"
-              [class.bg-success]="block.extras.matchRate >= 99"
-              [class.bg-warning]="block.extras.matchRate >= 75 && block.extras.matchRate < 99"
-              [class.bg-danger]="block.extras.matchRate < 75"
-              [routerLink]="block.extras.matchRate != null ? ['/block/' | relativeUrl, block.id] : null"
-              [state]="{ data: { block: block } }"
-            >{{ block.extras.matchRate }}%</a>
-            <ng-template #nullHealth>
+              [class.bg-success]="block.extras.poolLuck >= 100"
+              [class.bg-warning]="block.extras.poolLuck >= 50 && block.extras.poolLuck < 100"
+              [class.bg-danger]="block.extras.poolLuck < 50"
+              [routerLink]="['/mining/pool' | relativeUrl, block.extras.pool.slug]"
+            >{{ block.extras.poolLuck | number:'1.0-0' }}%</a>
+            <ng-template #nullLuck>
               <span class="health-badge badge bg-secondary" i18n="unknown">Unknown</span>
             </ng-template>
           </td>
           <td *ngIf="isMempoolModule" class="reward text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
             <app-amount [satoshis]="block.extras.reward" [noFiat]="true" digitsInfo="1.2-2"></app-amount>
           </td>
-          <td *ngIf="isMempoolModule && !auditAvailable || isMempoolModule && !widget" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
+          <td *ngIf="isMempoolModule && !widget" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
             <app-amount [satoshis]="block.extras.totalFees" [noFiat]="true" digitsInfo="1.2-2"></app-amount>
           </td>
           <td *ngIf="auditAvailable" class="fee-delta" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
@@ -101,13 +100,13 @@
             <td class="timestamp" *ngIf="!widget" [class]="isMempoolModule ? '' : 'legacy'">
               <span class="skeleton-loader" style="max-width: 150px"></span>
             </td>
-            <td *ngIf="auditAvailable" class="health text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
+            <td *ngIf="indexingAvailable" class="health text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
               <span class="skeleton-loader" style="max-width: 75px"></span>
             </td>
             <td *ngIf="isMempoolModule" class="reward text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
               <span class="skeleton-loader" style="max-width: 75px"></span>
             </td>
-            <td *ngIf="isMempoolModule && !auditAvailable || isMempoolModule && !widget" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
+            <td *ngIf="isMempoolModule && !widget" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
               <span class="skeleton-loader" style="max-width: 75px"></span>
             </td>
             <td *ngIf="auditAvailable && !widget" class="fee-delta" [class]="isMempoolModule ? '' : 'legacy'">

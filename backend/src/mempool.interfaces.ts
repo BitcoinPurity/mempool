@@ -312,6 +312,7 @@ export interface BlockExtension {
   feeRange: number[]; // fee rate percentiles
   reward: number;
   matchRate: number | null;
+  poolLuck: number | null;
   expectedFees: number | null;
   expectedWeight: number | null;
   similarity?: number;

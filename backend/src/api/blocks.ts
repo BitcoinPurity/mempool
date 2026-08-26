@@ -418,6 +418,7 @@ class Blocks {
       }
 
       extras.matchRate = null;
+      extras.poolLuck = null;
       extras.expectedFees = null;
       extras.expectedWeight = null;
       if (config.MEMPOOL.AUDIT) {
@@ -1306,6 +1307,14 @@ class Blocks {
       const cpfpSummary = processingResult.cpfpSummary;
       this.updateTimerProgress(timer, `got block data for ${this.currentBlockHeight}`);
 
+      if (blockExtended.extras?.pool?.id) {
+        blockExtended.extras.poolLuck = await mining.$getPoolRoundLuck(
+          blockExtended.extras.pool.id,
+          blockExtended.height,
+          blockExtended.timestamp
+        );
+      }
+
       if (config.STATISTICS.ENABLED && config.DATABASE.ENABLED) {
         await statistics.runStatistics();
       }
@@ -1851,6 +1860,9 @@ class Blocks {
               }
             }
           }
+          if (block.extras.poolLuck == null && block.extras.pool?.id) {
+            block.extras.poolLuck = await mining.$getPoolRoundLuck(block.extras.pool.id, block.height, block.timestamp);
+          }
         }
         returnBlocks.push(block);
       } else {
@@ -1884,6 +1896,9 @@ class Blocks {
             } catch (e) {
               logger.debug(`Cannot backfill health for block ${block.height}: ` + (e instanceof Error ? e.message : e));
             }
+          }
+          if (block.extras.poolLuck == null && block.extras.pool?.id) {
+            block.extras.poolLuck = await mining.$getPoolRoundLuck(block.extras.pool.id, block.height, block.timestamp);
           }
         }
         returnBlocks.push(block);

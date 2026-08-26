@@ -238,6 +238,7 @@ export interface BlockExtension {
   coinbaseAddress?: string | null;
   coinbaseAddresses?: string[] | null;
   matchRate?: number;
+  poolLuck?: number | null;
   expectedFees?: number;
   expectedWeight?: number;
   feeDelta?: number;

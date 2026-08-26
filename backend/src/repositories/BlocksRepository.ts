@@ -434,10 +434,33 @@ class BlocksRepository {
   }
 
   /**
+   * Timestamp of the most recent prior block from the same pool (by unique_id)
+   * @asyncSafe
+   */
+  public async $getPreviousPoolBlockTimestamp(poolUniqueId: number, beforeHeight: number): Promise<number | null> {
+    try {
+      const [rows]: any[] = await DB.query(`
+        SELECT UNIX_TIMESTAMP(blocks.blockTimestamp) AS timestamp
+        FROM blocks
+        JOIN pools ON pools.id = blocks.pool_id
+        WHERE pools.unique_id = ?
+          AND blocks.height < ?
+          AND blocks.stale = 0
+        ORDER BY blocks.height DESC
+        LIMIT 1
+      `, [poolUniqueId, beforeHeight]);
+      return rows.length ? Number(rows[0].timestamp) : null;
+    } catch (e) {
+      logger.err(`Cannot get previous pool block timestamp. Reason: ` + (e instanceof Error ? e.message : e));
+      return null;
+    }
+  }
+
+  /**
    * Get average block health for all blocks for a single pool
    * @asyncSafe
    */
-  public async $getAvgBlockHealthPerPoolId(poolId: number): Promise<number | null> {
+   public async $getAvgBlockHealthPerPoolId(poolId: number): Promise<number | null> {
     const params: any[] = [];
     const query = `
       SELECT AVG(blocks_audits.match_rate) AS avg_match_rate

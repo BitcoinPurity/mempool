@@ -36,6 +36,76 @@ class Mining {
     difficulty: number,
   } | null = null;
 
+  // Cache pool 24h block shares briefly to avoid per-block DB storms on /blocks
+  private poolShareCache: { expires: number, total24h: number, byUniqueId: Map<number, number> } | null = null;
+
+  /**
+   * Round luck for a mined block: expected interval / actual interval since this pool's previous block.
+   * Uses 24h block share as hashrate proxy. >100% = found sooner than expected (lucky).
+   * @asyncSafe
+   */
+  public async $getPoolRoundLuck(poolUniqueId: number, height: number, timestamp: number): Promise<number | null> {
+    if (!config.DATABASE.ENABLED || !poolUniqueId || !timestamp) {
+      return null;
+    }
+
+    try {
+      const share = await this.$getCachedPoolShare24h(poolUniqueId);
+      if (share == null || share <= 0) {
+        return null;
+      }
+
+      const prevTimestamp = await BlocksRepository.$getPreviousPoolBlockTimestamp(poolUniqueId, height);
+      if (prevTimestamp == null) {
+        return null;
+      }
+
+      const actualInterval = timestamp - prevTimestamp;
+      if (actualInterval <= 0) {
+        return null;
+      }
+
+      const expectedInterval = 600 / share; // seconds; network targets ~600s per block
+      const luck = (expectedInterval / actualInterval) * 100;
+      if (!Number.isFinite(luck) || luck <= 0) {
+        return null;
+      }
+      return Math.round(luck * 100) / 100;
+    } catch (e) {
+      logger.debug(`Cannot compute pool luck for pool ${poolUniqueId} at height ${height}: ` + (e instanceof Error ? e.message : e));
+      return null;
+    }
+  }
+
+  /** @asyncSafe */
+  private async $getCachedPoolShare24h(poolUniqueId: number): Promise<number | null> {
+    const now = Date.now();
+    if (!this.poolShareCache || this.poolShareCache.expires < now) {
+      const total24h = await BlocksRepository.$blockCount(null, '24h');
+      this.poolShareCache = {
+        expires: now + 5 * 60 * 1000,
+        total24h,
+        byUniqueId: new Map(),
+      };
+    }
+
+    if (this.poolShareCache.total24h <= 0) {
+      return null;
+    }
+
+    if (!this.poolShareCache.byUniqueId.has(poolUniqueId)) {
+      const pool = await PoolsRepository.$getPoolByUniqueId(poolUniqueId, false);
+      if (!pool?.id) {
+        this.poolShareCache.byUniqueId.set(poolUniqueId, 0);
+      } else {
+        const poolBlocks24h = await BlocksRepository.$blockCount(pool.id, '24h');
+        this.poolShareCache.byUniqueId.set(poolUniqueId, poolBlocks24h / this.poolShareCache.total24h);
+      }
+    }
+
+    return this.poolShareCache.byUniqueId.get(poolUniqueId) ?? null;
+  }
+
   /**
    * Get historical blocks health
    */
