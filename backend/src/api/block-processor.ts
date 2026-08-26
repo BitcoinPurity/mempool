@@ -67,11 +67,14 @@ class BlockProcessor {
     const blockSummary = blocks.summarizeBlockTransactions(block.id, block.height, cpfpSummary.transactions);
 
     if (blockExtended.extras && config.MEMPOOL.AUDIT) {
-      blockExtended.extras.matchRate = Audit.computeSpamHealth(cpfpSummary.transactions, block.height);
+      // Prefer already-classified summary (no second full classification pass)
+      blockExtended.extras.matchRate = Audit.computeSpamHealthFromClassified(blockSummary.transactions);
     }
 
     let auditResult: ProcessedAudit | undefined;
-    if (config.MEMPOOL.AUDIT && memPool.isInSync()) {
+    // Full template/GBT audit is optional and expensive (not suitable for low-power hosts).
+    // AUDIT alone enables lightweight spam-based Health (matchRate).
+    if (config.MEMPOOL.AUDIT && config.MEMPOOL.AUDIT_GBT && memPool.isInSync()) {
       auditResult = await this.$runAudit(
         blockExtended,
         transactions,

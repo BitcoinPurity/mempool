@@ -43,6 +43,7 @@ describe('Mempool Backend Config', () => {
         POOLS_JSON_URL: 'https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json',
         POOLS_UPDATE_DELAY: 604800,
         AUDIT: false,
+        AUDIT_GBT: false,
         RUST_GBT: true,
         LIMIT_GBT: false,
         CLUSTER_MEMPOOL: false,

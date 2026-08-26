@@ -16,6 +16,7 @@
     "AUTOMATIC_POOLS_UPDATE": true,
     "POOLS_UPDATE_DELAY": 3600,
     "AUDIT": true,
+    "AUDIT_GBT": false,
     "CPFP_INDEXING": true,
     "RUST_GBT": true,
     "CLUSTER_MEMPOOL": true,
