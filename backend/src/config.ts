@@ -33,6 +33,7 @@ interface IConfig {
     POOLS_JSON_URL: string,
     POOLS_JSON_TREE_URL: string,
     POOLS_UPDATE_DELAY: number,
+    POOLS_OVERLAY_PATH: string,
     AUDIT: boolean;
     AUDIT_GBT: boolean;
     CLUSTER_MEMPOOL: boolean;
@@ -213,6 +214,7 @@ const defaults: IConfig = {
     'POOLS_JSON_URL': 'https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json',
     'POOLS_JSON_TREE_URL': 'https://api.github.com/repos/mempool/mining-pools/git/trees/master',
     'POOLS_UPDATE_DELAY': 604800, // in seconds, default is one week
+    'POOLS_OVERLAY_PATH': '',
     'AUDIT': false,
     'AUDIT_GBT': false,
     'CLUSTER_MEMPOOL': false,

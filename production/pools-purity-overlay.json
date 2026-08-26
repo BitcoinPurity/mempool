@@ -1,0 +1,22 @@
+[
+  {
+    "id": 9002,
+    "name": "Purity CKPool",
+    "link": "https://bitcoinpurity.org",
+    "tags": [
+      "ckpool",
+      "/ckpool.org/",
+      "/BitcoinPurity/"
+    ],
+    "addresses": []
+  },
+  {
+    "id": 9001,
+    "name": "Purity Datum",
+    "link": "https://bitcoinpurity.org",
+    "tags": [
+      "Purity Datum"
+    ],
+    "addresses": []
+  }
+]

@@ -15,6 +15,7 @@
     "GOGGLES_INDEXING": true,
     "AUTOMATIC_POOLS_UPDATE": true,
     "POOLS_UPDATE_DELAY": 3600,
+    "POOLS_OVERLAY_PATH": "/opt/mempool/production/pools-purity-overlay.json",
     "AUDIT": true,
     "AUDIT_GBT": false,
     "CPFP_INDEXING": true,

@@ -6,6 +6,8 @@ import backendInfo from '../api/backend-info';
 import logger from '../logger';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import * as https from 'https';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { Common } from '../api/common';
 
 /**
@@ -56,15 +58,20 @@ class PoolsUpdater {
         return;
       }
 
-      logger.debug(`pools-v2.json sha | Current: ${this.currentSha} | Github: ${githubSha}`, this.tag);
-      if (this.currentSha !== null && this.currentSha === githubSha) {
+      const overlay = this.loadPoolsOverlay();
+      const effectiveSha = overlay ? `${githubSha}:overlay:${overlay.hash}` : githubSha;
+
+      logger.debug(`pools-v2.json sha | Current: ${this.currentSha} | Effective: ${effectiveSha}`, this.tag);
+      if (this.currentSha !== null && this.currentSha === effectiveSha) {
         return;
       }
 
       // See backend README for more details about the mining pools update process
+      // Overlay reimports are always allowed so local purity tags/addresses can be applied
       if (this.currentSha !== null && // If we don't have any mining pool, download it at least once
         config.MEMPOOL.AUTOMATIC_POOLS_UPDATE !== true && // Automatic pools update is disabled
-        !process.env.npm_config_update_pools // We're not manually updating mining pool
+        !process.env.npm_config_update_pools && // We're not manually updating mining pool
+        !overlay
       ) {
         logger.warn(`Updated mining pools data is available (${githubSha}) but AUTOMATIC_POOLS_UPDATE is disabled`, this.tag);
         logger.info(`You can update your mining pools using the --update-pools command flag. You may want to clear your nginx cache as well if applicable`, this.tag);
@@ -81,29 +88,91 @@ class PoolsUpdater {
       if (poolsJson === undefined) {
         return;
       }
-      poolsParser.setMiningPools(poolsJson);
+
+      const mergedPools = overlay ? this.mergePoolsOverlay(poolsJson, overlay.pools) : poolsJson;
+      if (overlay) {
+        logger.info(`Applied pools overlay from ${config.MEMPOOL.POOLS_OVERLAY_PATH} (${overlay.pools.length} entries)`, this.tag);
+      }
+      poolsParser.setMiningPools(mergedPools);
 
       if (config.DATABASE.ENABLED === false) { // Don't run db operations
-        logger.info(`Mining pools-v2.json (${githubSha}) import completed (no database)`, this.tag);
+        logger.info(`Mining pools-v2.json (${effectiveSha}) import completed (no database)`, this.tag);
         return;
       }
 
       try {
         await DB.query('START TRANSACTION;');
-        await this.updateDBSha(githubSha);
+        await this.updateDBSha(effectiveSha);
         await poolsParser.migratePoolsJson();
         await DB.query('COMMIT;');
       } catch (e) {
         logger.err(`Could not migrate mining pools, rolling back. Exception: ${JSON.stringify(e)}`, this.tag);
         await DB.query('ROLLBACK;');
       }
-      logger.info(`Mining pools-v2.json (${githubSha}) import completed`, this.tag);
+      logger.info(`Mining pools-v2.json (${effectiveSha}) import completed`, this.tag);
 
     } catch (e) {
       // fast-forward lastRun to 10 minutes before the next scheduled update
       this.lastRun = now - Math.max(config.MEMPOOL.POOLS_UPDATE_DELAY - 600, 600);
       logger.err(`PoolsUpdater failed. Will try again in 10 minutes. Exception: ${JSON.stringify(e)}`, this.tag);
     }
+  }
+
+  private loadPoolsOverlay(): { hash: string, pools: any[] } | null {
+    const overlayPath = config.MEMPOOL.POOLS_OVERLAY_PATH;
+    if (!overlayPath) {
+      return null;
+    }
+    try {
+      if (!fs.existsSync(overlayPath)) {
+        logger.warn(`Pools overlay path configured but file not found: ${overlayPath}`, this.tag);
+        return null;
+      }
+      const raw = fs.readFileSync(overlayPath, 'utf8');
+      const pools = JSON.parse(raw);
+      if (!Array.isArray(pools) || pools.length === 0) {
+        logger.warn(`Pools overlay is empty or invalid: ${overlayPath}`, this.tag);
+        return null;
+      }
+      const hash = crypto.createHash('sha1').update(raw).digest('hex');
+      return { hash, pools };
+    } catch (e) {
+      logger.err(`Failed to load pools overlay ${overlayPath}. Reason: ${e instanceof Error ? e.message : e}`, this.tag);
+      return null;
+    }
+  }
+
+  private mergePoolsOverlay(pools: any[], overlay: any[]): any[] {
+    const byId = new Map<number, any>();
+    for (const pool of pools) {
+      byId.set(pool.id, { ...pool, tags: [...(pool.tags || [])], addresses: [...(pool.addresses || [])] });
+    }
+
+    for (const entry of overlay) {
+      if (!entry?.id || !entry?.name) {
+        logger.warn(`Skipping invalid pools overlay entry: ${JSON.stringify(entry)}`, this.tag);
+        continue;
+      }
+      const existing = byId.get(entry.id);
+      if (!existing) {
+        byId.set(entry.id, {
+          id: entry.id,
+          name: entry.name,
+          link: entry.link || '',
+          tags: [...(entry.tags || [])],
+          addresses: [...(entry.addresses || [])],
+        });
+        continue;
+      }
+
+      existing.name = entry.name || existing.name;
+      existing.link = entry.link || existing.link;
+      existing.tags = Array.from(new Set([...(existing.tags || []), ...(entry.tags || [])]));
+      existing.addresses = Array.from(new Set([...(existing.addresses || []), ...(entry.addresses || [])]));
+      byId.set(entry.id, existing);
+    }
+
+    return Array.from(byId.values());
   }
 
   /**
