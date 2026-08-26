@@ -471,10 +471,10 @@ class BlocksRepository {
           FROM blocks
           WHERE stale = 0
           ORDER BY height DESC
-          LIMIT ?
+          LIMIT ${Math.max(1, Math.floor(windowSize))}
         ) recent
         JOIN pools ON pools.id = recent.pool_id
-      `, [poolUniqueId, windowSize]);
+      `, [poolUniqueId]);
       const total = Number(rows[0]?.total || 0);
       const poolBlocks = Number(rows[0]?.pool_blocks || 0);
       if (total <= 0 || poolBlocks <= 0) {

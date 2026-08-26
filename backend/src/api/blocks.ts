@@ -1307,7 +1307,7 @@ class Blocks {
       const cpfpSummary = processingResult.cpfpSummary;
       this.updateTimerProgress(timer, `got block data for ${this.currentBlockHeight}`);
 
-      if (blockExtended.extras?.pool?.id) {
+      if (blockExtended.extras?.pool?.id != null) {
         blockExtended.extras.poolLuck = await mining.$getPoolRoundLuck(
           blockExtended.extras.pool.id,
           blockExtended.height,
@@ -1869,7 +1869,7 @@ class Blocks {
               }
             }
           }
-          if (block.extras.poolLuck == null && block.extras.pool?.id) {
+          if (block.extras.poolLuck == null && block.extras.pool?.id != null) {
             block.extras.poolLuck = await mining.$getPoolRoundLuck(
               block.extras.pool.id,
               block.height,
@@ -1911,7 +1911,7 @@ class Blocks {
               logger.debug(`Cannot backfill health for block ${block.height}: ` + (e instanceof Error ? e.message : e));
             }
           }
-          if (block.extras.poolLuck == null && block.extras.pool?.id) {
+          if (block.extras.poolLuck == null && block.extras.pool?.id != null) {
             block.extras.poolLuck = await mining.$getPoolRoundLuck(
               block.extras.pool.id,
               block.height,

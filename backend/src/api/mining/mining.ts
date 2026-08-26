@@ -50,7 +50,8 @@ class Mining {
     timestamp: number,
     recentBlocks: { height: number, timestamp: number, poolUniqueId: number | undefined }[] = [],
   ): Promise<number | null> {
-    if (!poolUniqueId || !timestamp) {
+    // unique_id 0 is the Unknown pool — must not treat as missing
+    if (poolUniqueId == null || !Number.isFinite(poolUniqueId) || !timestamp) {
       return null;
     }
 

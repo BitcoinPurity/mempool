@@ -45,7 +45,11 @@
                 <span *ngIf="!widget" class="tooltiptext badge bg-secondary scriptmessage">{{ block.extras.coinbaseRaw | hex2ascii }}</span>
               </div>
               <div *ngIf="block.extras?.coinbaseAddress" class="pool-reward-address">
-                <app-address-text [address]="block.extras.coinbaseAddress"></app-address-text>
+                <a class="clear-link"
+                  [routerLink]="['/address/' | relativeUrl, block.extras.coinbaseAddress]"
+                  [title]="block.extras.coinbaseAddress">
+                  {{ block.extras.coinbaseAddress.slice(0, 6) }}...{{ block.extras.coinbaseAddress.slice(-6) }}
+                </a>
               </div>
             </div>
           </td>

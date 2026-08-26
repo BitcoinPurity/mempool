@@ -74,6 +74,12 @@ tr, td, th {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 100%;
+
+    a {
+      font-family: monospace;
+      color: var(--tertiary);
+    }
   }
 }
 .pool.widget {
