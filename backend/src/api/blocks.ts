@@ -1311,7 +1311,8 @@ class Blocks {
         blockExtended.extras.poolLuck = await mining.$getPoolRoundLuck(
           blockExtended.extras.pool.id,
           blockExtended.height,
-          blockExtended.timestamp
+          blockExtended.timestamp,
+          this.getRecentBlocksForLuck(),
         );
       }
 
@@ -1458,6 +1459,14 @@ class Blocks {
     this.clearTimer(timer);
 
     return handledBlocks;
+  }
+
+  private getRecentBlocksForLuck(): { height: number, timestamp: number, poolUniqueId: number | undefined }[] {
+    return this.getBlocks().map((b) => ({
+      height: b.height,
+      timestamp: b.timestamp,
+      poolUniqueId: b.extras?.pool?.id,
+    }));
   }
 
   private startTimer() {
@@ -1861,7 +1870,12 @@ class Blocks {
             }
           }
           if (block.extras.poolLuck == null && block.extras.pool?.id) {
-            block.extras.poolLuck = await mining.$getPoolRoundLuck(block.extras.pool.id, block.height, block.timestamp);
+            block.extras.poolLuck = await mining.$getPoolRoundLuck(
+              block.extras.pool.id,
+              block.height,
+              block.timestamp,
+              this.getRecentBlocksForLuck(),
+            );
           }
         }
         returnBlocks.push(block);
@@ -1898,7 +1912,12 @@ class Blocks {
             }
           }
           if (block.extras.poolLuck == null && block.extras.pool?.id) {
-            block.extras.poolLuck = await mining.$getPoolRoundLuck(block.extras.pool.id, block.height, block.timestamp);
+            block.extras.poolLuck = await mining.$getPoolRoundLuck(
+              block.extras.pool.id,
+              block.height,
+              block.timestamp,
+              this.getRecentBlocksForLuck(),
+            );
           }
         }
         returnBlocks.push(block);

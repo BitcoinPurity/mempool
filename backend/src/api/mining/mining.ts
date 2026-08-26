@@ -36,26 +36,40 @@ class Mining {
     difficulty: number,
   } | null = null;
 
-  // Cache pool 24h block shares briefly to avoid per-block DB storms on /blocks
-  private poolShareCache: { expires: number, total24h: number, byUniqueId: Map<number, number> } | null = null;
+  // Cache pool block shares briefly to avoid per-block DB storms on /blocks
+  private poolShareCache: { expires: number, windowSize: number, byUniqueId: Map<number, number> } | null = null;
 
   /**
    * Round luck for a mined block: expected interval / actual interval since this pool's previous block.
-   * Uses 24h block share as hashrate proxy. >100% = found sooner than expected (lucky).
+   * Uses recent block share as hashrate proxy. >100% = found sooner than expected (lucky).
    * @asyncSafe
    */
-  public async $getPoolRoundLuck(poolUniqueId: number, height: number, timestamp: number): Promise<number | null> {
-    if (!config.DATABASE.ENABLED || !poolUniqueId || !timestamp) {
+  public async $getPoolRoundLuck(
+    poolUniqueId: number,
+    height: number,
+    timestamp: number,
+    recentBlocks: { height: number, timestamp: number, poolUniqueId: number | undefined }[] = [],
+  ): Promise<number | null> {
+    if (!poolUniqueId || !timestamp) {
       return null;
     }
 
     try {
-      const share = await this.$getCachedPoolShare24h(poolUniqueId);
+      const share = await this.$getPoolShare(poolUniqueId, recentBlocks);
       if (share == null || share <= 0) {
         return null;
       }
 
-      const prevTimestamp = await BlocksRepository.$getPreviousPoolBlockTimestamp(poolUniqueId, height);
+      let prevTimestamp: number | null = null;
+      const fromMemory = recentBlocks
+        .filter((b) => b.poolUniqueId === poolUniqueId && b.height < height)
+        .sort((a, b) => b.height - a.height);
+      if (fromMemory.length) {
+        prevTimestamp = fromMemory[0].timestamp;
+      } else if (config.DATABASE.ENABLED) {
+        prevTimestamp = await BlocksRepository.$getPreviousPoolBlockTimestamp(poolUniqueId, height);
+      }
+
       if (prevTimestamp == null) {
         return null;
       }
@@ -78,32 +92,39 @@ class Mining {
   }
 
   /** @asyncSafe */
-  private async $getCachedPoolShare24h(poolUniqueId: number): Promise<number | null> {
+  private async $getPoolShare(
+    poolUniqueId: number,
+    recentBlocks: { height: number, timestamp: number, poolUniqueId: number | undefined }[],
+  ): Promise<number | null> {
+    // Prefer in-memory tip window (works even when DB time filters are empty/misaligned)
+    if (recentBlocks.length >= 3) {
+      const poolCount = recentBlocks.filter((b) => b.poolUniqueId === poolUniqueId).length;
+      if (poolCount > 0) {
+        return poolCount / recentBlocks.length;
+      }
+    }
+
+    if (!config.DATABASE.ENABLED) {
+      return null;
+    }
+
     const now = Date.now();
+    const windowSize = 144;
     if (!this.poolShareCache || this.poolShareCache.expires < now) {
-      const total24h = await BlocksRepository.$blockCount(null, '24h');
       this.poolShareCache = {
         expires: now + 5 * 60 * 1000,
-        total24h,
+        windowSize,
         byUniqueId: new Map(),
       };
     }
 
-    if (this.poolShareCache.total24h <= 0) {
-      return null;
-    }
-
     if (!this.poolShareCache.byUniqueId.has(poolUniqueId)) {
-      const pool = await PoolsRepository.$getPoolByUniqueId(poolUniqueId, false);
-      if (!pool?.id) {
-        this.poolShareCache.byUniqueId.set(poolUniqueId, 0);
-      } else {
-        const poolBlocks24h = await BlocksRepository.$blockCount(pool.id, '24h');
-        this.poolShareCache.byUniqueId.set(poolUniqueId, poolBlocks24h / this.poolShareCache.total24h);
-      }
+      const share = await BlocksRepository.$getPoolShareInRecentBlocks(poolUniqueId, windowSize);
+      this.poolShareCache.byUniqueId.set(poolUniqueId, share ?? 0);
     }
 
-    return this.poolShareCache.byUniqueId.get(poolUniqueId) ?? null;
+    const cached = this.poolShareCache.byUniqueId.get(poolUniqueId) ?? 0;
+    return cached > 0 ? cached : null;
   }
 
   /**

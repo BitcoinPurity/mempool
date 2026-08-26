@@ -457,6 +457,37 @@ class BlocksRepository {
   }
 
   /**
+   * Pool share of the most recent N indexed blocks (by height window, not wall-clock).
+   * @asyncSafe
+   */
+  public async $getPoolShareInRecentBlocks(poolUniqueId: number, windowSize: number = 144): Promise<number | null> {
+    try {
+      const [rows]: any[] = await DB.query(`
+        SELECT
+          COUNT(*) AS total,
+          SUM(CASE WHEN pools.unique_id = ? THEN 1 ELSE 0 END) AS pool_blocks
+        FROM (
+          SELECT pool_id
+          FROM blocks
+          WHERE stale = 0
+          ORDER BY height DESC
+          LIMIT ?
+        ) recent
+        JOIN pools ON pools.id = recent.pool_id
+      `, [poolUniqueId, windowSize]);
+      const total = Number(rows[0]?.total || 0);
+      const poolBlocks = Number(rows[0]?.pool_blocks || 0);
+      if (total <= 0 || poolBlocks <= 0) {
+        return null;
+      }
+      return poolBlocks / total;
+    } catch (e) {
+      logger.err(`Cannot get pool share in recent blocks. Reason: ` + (e instanceof Error ? e.message : e));
+      return null;
+    }
+  }
+
+  /**
    * Get average block health for all blocks for a single pool
    * @asyncSafe
    */
