@@ -7,6 +7,7 @@ import logger from '../logger';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import * as https from 'https';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as crypto from 'crypto';
 import { Common } from '../api/common';
 
@@ -53,12 +54,20 @@ class PoolsUpdater {
         this.currentSha = await this.getShaFromDb();
       }
 
-      const githubSha = await this.fetchPoolsSha(); // Fetch pools-v2.json sha from github
+      const overlay = this.loadPoolsOverlay();
+      let githubSha = await this.fetchPoolsSha(); // Fetch pools-v2.json sha from github
       if (githubSha === null) {
-        return;
+        // GitHub tree API can fail while the raw JSON URL still works; don't block overlay imports
+        if (overlay) {
+          githubSha = (this.currentSha && this.currentSha.includes(':overlay:'))
+            ? this.currentSha.split(':overlay:')[0]
+            : 'unavailable';
+          logger.warn(`Could not fetch pools-v2.json sha from GitHub; continuing with overlay using base sha "${githubSha}"`, this.tag);
+        } else {
+          return;
+        }
       }
 
-      const overlay = this.loadPoolsOverlay();
       const effectiveSha = overlay ? `${githubSha}:overlay:${overlay.hash}` : githubSha;
 
       logger.debug(`pools-v2.json sha | Current: ${this.currentSha} | Effective: ${effectiveSha}`, this.tag);
@@ -91,7 +100,7 @@ class PoolsUpdater {
 
       const mergedPools = overlay ? this.mergePoolsOverlay(poolsJson, overlay.pools) : poolsJson;
       if (overlay) {
-        logger.info(`Applied pools overlay from ${config.MEMPOOL.POOLS_OVERLAY_PATH} (${overlay.pools.length} entries)`, this.tag);
+        logger.info(`Applied pools overlay from ${overlay.path} (${overlay.pools.length} entries)`, this.tag);
       }
       poolsParser.setMiningPools(mergedPools);
 
@@ -118,16 +127,38 @@ class PoolsUpdater {
     }
   }
 
-  private loadPoolsOverlay(): { hash: string, pools: any[] } | null {
-    const overlayPath = config.MEMPOOL.POOLS_OVERLAY_PATH;
+  private resolvePoolsOverlayPath(): string | null {
+    const configured = (config.MEMPOOL.POOLS_OVERLAY_PATH || '').trim();
+    const candidates = [
+      configured,
+      // Common layouts when the process cwd is backend/ or repo root
+      path.resolve(process.cwd(), '../production/pools-purity-overlay.json'),
+      path.resolve(process.cwd(), 'production/pools-purity-overlay.json'),
+      path.resolve(process.cwd(), 'pools-purity-overlay.json'),
+    ].filter((p) => !!p);
+
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
+      } catch (_) {
+        // ignore and try next candidate
+      }
+    }
+
+    if (configured) {
+      logger.warn(`Pools overlay path configured but file not found: ${configured}`, this.tag);
+    }
+    return null;
+  }
+
+  private loadPoolsOverlay(): { hash: string, pools: any[], path: string } | null {
+    const overlayPath = this.resolvePoolsOverlayPath();
     if (!overlayPath) {
       return null;
     }
     try {
-      if (!fs.existsSync(overlayPath)) {
-        logger.warn(`Pools overlay path configured but file not found: ${overlayPath}`, this.tag);
-        return null;
-      }
       const raw = fs.readFileSync(overlayPath, 'utf8');
       const pools = JSON.parse(raw);
       if (!Array.isArray(pools) || pools.length === 0) {
@@ -135,7 +166,7 @@ class PoolsUpdater {
         return null;
       }
       const hash = crypto.createHash('sha1').update(raw).digest('hex');
-      return { hash, pools };
+      return { hash, pools, path: overlayPath };
     } catch (e) {
       logger.err(`Failed to load pools overlay ${overlayPath}. Reason: ${e instanceof Error ? e.message : e}`, this.tag);
       return null;

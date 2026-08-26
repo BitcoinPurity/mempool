@@ -109,6 +109,18 @@ class PoolsParser {
       }
     }
 
+    if (clearCache) {
+      // Refresh tip/memory immediately so API stops serving Unknown while the
+      // historical Unknown reindex (can take a long time) is still running.
+      logger.notice(`Refreshing in-memory tip blocks with updated pool definitions.`);
+      for (const block of blocks.getBlocks()) {
+        const reindexedBlock = await blocks.$indexBlock(block.id);
+        block.extras.pool = reindexedBlock.extras.pool;
+      }
+      void diskCache.$saveCacheToDisk();
+      void redisCache.$updateBlocks(blocks.getBlocks());
+    }
+
     if (reindexUnknown) {
       logger.notice(`Updating addresses and/or coinbase tags for unknown mining pool.`);
       let unknownPool;
@@ -118,17 +130,6 @@ class PoolsParser {
         unknownPool = this.unknownPool;
       }
       await this.$reindexBlocksForPool(unknownPool.id);
-    }
-
-    // refresh the in-memory block cache with the reindexed data
-    if (clearCache) {
-      for (const block of blocks.getBlocks()) {
-        const reindexedBlock = await blocks.$indexBlock(block.id);
-        block.extras.pool = reindexedBlock.extras.pool;
-      }
-      // update persistent cache with the reindexed data
-      void diskCache.$saveCacheToDisk();
-      void redisCache.$updateBlocks(blocks.getBlocks());
     }
   }
 
