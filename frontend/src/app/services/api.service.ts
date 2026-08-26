@@ -26,10 +26,7 @@ export class ApiService {
     private stateService: StateService,
     private storageService: StorageService
   ) {
-    this.apiBaseUrl = ''; // use relative URL by default
-    if (!stateService.isBrowser) { // except when inside AU SSR process
-      this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
-    }
+    this.apiBaseUrl = this.stateService.getApiEndpointRoot();
     this.apiBasePath = ''; // assume mainnet by default
     this.stateService.networkChanged$.subscribe((network) => {
       this.apiBasePath = network && network !== this.stateService.env.ROOT_NETWORK ? '/' + network : '';
@@ -268,6 +265,17 @@ export class ApiService {
 
   getTransactionStatus$(txid: string): Observable<any> {
     return this.httpClient.get<any>(this.apiBaseUrl + this.apiBasePath + '/api/tx/' + txid + '/status');
+  }
+
+  getCoreTipHeight$(): Observable<number> {
+    const endpoint = this.stateService.env.CORE_TIP_HEIGHT_API || 'https://mempool.space/api/blocks/tip/height';
+    return this.httpClient.get<number>(endpoint);
+  }
+
+  getCoreTransaction$(txid: string): Observable<any> {
+    const endpointTemplate = this.stateService.env.CORE_TX_API || 'https://mempool.space/api/tx/{txid}';
+    const endpoint = endpointTemplate.replace('{txid}', encodeURIComponent(txid));
+    return this.httpClient.get<any>(endpoint);
   }
 
   listPools$(interval: string | undefined) : Observable<any> {

@@ -31,6 +31,9 @@
           [removed]="this.rbfInfo?.mined && !this.tx?.status?.confirmed"
           [cached]="isCached"
         ></app-confirmations>
+        @if (tx && network !== 'liquid' && network !== 'liquidtestnet') {
+          <app-core-confirmations [txid]="tx.txid" [buttonClass]="'ms-2'"></app-core-confirmations>
+        }
       </div>
     </ng-container>
   </div>

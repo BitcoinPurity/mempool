@@ -90,6 +90,14 @@ export interface Env {
   STRATUM_ENABLED: boolean;
   SERVICES_API?: string;
   TWIDGET_API?: string;
+  /**
+   * Optional absolute root for the local/Purity chain API (no trailing slash).
+   * Example: "https://mempool.bitcoinpurity.org"
+   * Empty string keeps same-origin relative requests ("/api/...").
+   */
+  PURITY_API_ROOT?: string;
+  CORE_TIP_HEIGHT_API?: string;
+  CORE_TX_API?: string;
   customize?: Customization;
   PROD_DOMAINS: string[];
 }
@@ -137,6 +145,9 @@ const defaultEnv: Env = {
   'STRATUM_ENABLED': false,
   'SERVICES_API': 'https://mempool.space/api/v1/services',
   'TWIDGET_API': 'https://mempool.ninja',
+  'PURITY_API_ROOT': '',
+  'CORE_TIP_HEIGHT_API': 'https://mempool.space/api/blocks/tip/height',
+  'CORE_TX_API': 'https://mempool.space/api/tx/{txid}',
   'PROD_DOMAINS': [],
 };
 
@@ -507,6 +518,21 @@ export class StateService {
 
   isLiquid() {
     return this.network === 'liquid' || this.network === 'liquidtestnet';
+  }
+
+  /**
+   * HTTP origin used for Purity/local-chain API calls.
+   * Prefer PURITY_API_ROOT when set; otherwise SSR uses NGINX_*; browser uses relative URLs.
+   */
+  getApiEndpointRoot(): string {
+    const configured = (this.env.PURITY_API_ROOT || '').trim().replace(/\/+$/, '');
+    if (configured) {
+      return configured;
+    }
+    if (!this.isBrowser) {
+      return `${this.env.NGINX_PROTOCOL}://${this.env.NGINX_HOSTNAME}:${this.env.NGINX_PORT}`;
+    }
+    return '';
   }
 
   isMainnet(): boolean {

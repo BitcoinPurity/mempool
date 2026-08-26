@@ -550,6 +550,9 @@
             <app-amount [blockConversion]="tx.price" [satoshis]="tx['addressValue']" [addPlus]="true" [unitStyle]="{color: '#ffffffbb'}"></app-amount>
           </button>
         </ng-template>
+        @if (!isLiquid) {
+          <app-core-confirmations [txid]="tx.txid" [buttonClass]="'mt-2 ms-2'"></app-core-confirmations>
+        }
       </div>
       <div class="clearfix"></div>
     </div>

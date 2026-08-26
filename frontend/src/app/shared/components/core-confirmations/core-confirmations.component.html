@@ -1,0 +1,14 @@
+@if (loaded) {
+  <button type="button" class="btn btn-sm no-cursor core-confirmations {{ buttonColorClass }} {{ buttonClass }}" [title]="'Bitcoin Core / Legacy Chain'">
+    <span class="core-confirmations-status">
+      @if (!found) {
+        <span>Not found</span>
+      } @else if (confirmations === 1) {
+        <span i18n="shared.confirmation-count.singular|Transaction singular confirmation count">{{ confirmations }} confirmation</span>
+      } @else {
+        <span i18n="shared.confirmation-count.plural|Transaction plural confirmation count">{{ confirmations }} confirmations</span>
+      }
+    </span>
+    <span class="core-confirmations-label">Legacy Chain</span>
+  </button>
+}

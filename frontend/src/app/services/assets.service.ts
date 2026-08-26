@@ -26,10 +26,7 @@ export class AssetsService {
     private stateService: StateService,
     private electrsApiService: ElectrsApiService,
   ) {
-    this.apiBaseUrl = ''; // use relative URL by default
-    if (!stateService.isBrowser) { // except when inside AU SSR process
-      this.apiBaseUrl = this.stateService.env.NGINX_PROTOCOL + '://' + this.stateService.env.NGINX_HOSTNAME + ':' + this.stateService.env.NGINX_PORT;
-    }
+    this.apiBaseUrl = this.stateService.getApiEndpointRoot();
     this.stateService.networkChanged$.subscribe(() => {
       this.registryAvailable = true;
       this.nativeAssetId = this.stateService.network === 'liquidtestnet' ? environment.nativeTestAssetId : environment.nativeAssetId;

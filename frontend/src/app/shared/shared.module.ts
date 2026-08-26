@@ -105,6 +105,7 @@ import { TruncateComponent } from '@app/shared/components/truncate/truncate.comp
 import { SearchResultsComponent } from '@components/search-form/search-results/search-results.component';
 import { TimestampComponent } from '@app/shared/components/timestamp/timestamp.component';
 import { ConfirmationsComponent } from '@app/shared/components/confirmations/confirmations.component';
+import { CoreConfirmationsComponent } from '@app/shared/components/core-confirmations/core-confirmations.component';
 import { ToggleComponent } from '@app/shared/components/toggle/toggle.component';
 import { GeolocationComponent } from '@app/shared/components/geolocation/geolocation.component';
 import { TestnetAlertComponent } from '@app/shared/components/testnet-alert/testnet-alert.component';
@@ -235,6 +236,7 @@ import { OceanHashrateChartComponent } from '../components/ocean-hashrate-chart/
     SearchResultsComponent,
     TimestampComponent,
     ConfirmationsComponent,
+    CoreConfirmationsComponent,
     ToggleComponent,
     GeolocationComponent,
     TestnetAlertComponent,
@@ -395,6 +397,7 @@ import { OceanHashrateChartComponent } from '../components/ocean-hashrate-chart/
     SearchResultsComponent,
     TimestampComponent,
     ConfirmationsComponent,
+    CoreConfirmationsComponent,
     ToggleComponent,
     GeolocationComponent,
     TestnetAlertComponent,

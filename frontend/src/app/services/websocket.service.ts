@@ -20,9 +20,6 @@ const initData = makeStateKey('/api/v1/init-data');
   providedIn: 'root'
 })
 export class WebsocketService {
-  private webSocketProtocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
-  private webSocketUrl = this.webSocketProtocol + '//' + document.location.hostname + ':' + document.location.port + '{network}/api/v1/ws';
-
   private websocketSubject: WebSocketSubject<WebsocketResponse>;
   private goneOffline = false;
   private lastWant: string | null = null;
@@ -61,7 +58,7 @@ export class WebsocketService {
         .subscribe((response) => this.handleResponse(response));
     } else {
       this.network = this.stateService.network === this.stateService.env.ROOT_NETWORK ? '' : this.stateService.network;
-      this.websocketSubject = webSocket<WebsocketResponse>(this.webSocketUrl.replace('{network}', this.network ? '/' + this.network : ''));
+      this.websocketSubject = webSocket<WebsocketResponse>(this.getWebSocketUrl());
 
       const { response: theInitData } = this.transferState.get<any>(initData, null) || {};
       if (theInitData) {
@@ -91,13 +88,35 @@ export class WebsocketService {
     }
   }
 
+  /**
+   * Prefer PURITY_API_ROOT host for websocket when configured; otherwise same-origin.
+   */
+  private getWebSocketUrl(): string {
+    const root = this.stateService.getApiEndpointRoot();
+    let protocol = (document.location.protocol === 'https:') ? 'wss:' : 'ws:';
+    let host = document.location.hostname;
+    let port = document.location.port ? `:${document.location.port}` : '';
+
+    if (root) {
+      try {
+        const url = new URL(root);
+        protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        host = url.hostname;
+        port = url.port ? `:${url.port}` : '';
+      } catch {
+        // Keep same-origin websocket if PURITY_API_ROOT is invalid.
+      }
+    }
+
+    const networkPath = this.network ? '/' + this.network : '';
+    return `${protocol}//${host}${port}${networkPath}/api/v1/ws`;
+  }
+
   reconnectWebsocket(retrying = false, hasInitData = false) {
     console.log('reconnecting websocket');
     this.websocketSubject.complete();
     this.subscription.unsubscribe();
-    this.websocketSubject = webSocket<WebsocketResponse>(
-      this.webSocketUrl.replace('{network}', this.network ? '/' + this.network : '')
-    );
+    this.websocketSubject = webSocket<WebsocketResponse>(this.getWebSocketUrl());
 
     this.startSubscription(retrying, hasInitData);
   }
