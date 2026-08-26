@@ -70,7 +70,7 @@
             </ng-template>
           </td>
           <td *ngIf="isMempoolModule" class="reward text-end" [ngClass]="{'widget': widget, 'legacy': !isMempoolModule}">
-            <app-amount [satoshis]="block.extras.reward" [noFiat]="true" digitsInfo="1.2-2"></app-amount>
+            <app-amount [satoshis]="block.extras.reward" [noFiat]="true" digitsInfo="1.3-3"></app-amount>
           </td>
           <td *ngIf="isMempoolModule && !widget" class="fees text-end" [class]="isMempoolModule ? '' : 'legacy'">
             <app-amount [satoshis]="block.extras.totalFees" [noFiat]="true" digitsInfo="1.2-2"></app-amount>

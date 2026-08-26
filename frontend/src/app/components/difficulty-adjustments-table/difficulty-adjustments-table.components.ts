@@ -34,7 +34,7 @@ export class DifficultyAdjustmentsTable implements OnInit {
   }
 
   ngOnInit(): void {
-    let decimals = 2;
+    let decimals = 3;
     if (this.stateService.network === 'signet') {
       decimals = 5;
     }
