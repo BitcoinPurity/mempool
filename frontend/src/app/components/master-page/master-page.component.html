@@ -29,7 +29,10 @@
         }
       }
       @if (!enterpriseInfo || enterpriseInfo.dualLogo) {
-        <span class="mr-2 purity-logo-wrap"><img src="/resources/bitcoin-purity-logo.png" alt="Bitcoin Purity mempool" class="purity-logo"></span>
+        <span class="purity-brand">
+          <span class="purity-logo-wrap"><img src="/resources/bitcoin-purity-logo.png" alt="Bitcoin Purity mempool" class="purity-logo"></span>
+          <span class="purity-brand-name">Bitcoin Purity</span>
+        </span>
       }
       <div class="connection-badge">
         <div class="badge bg-warning" *ngIf="connectionState.val === 0" i18n="master-page.offline">Offline</div>
@@ -49,7 +52,10 @@
         }
       }
       @if (!enterpriseInfo || enterpriseInfo.dualLogo) {
-        <span class="mr-2 purity-logo-wrap"><img src="/resources/bitcoin-purity-logo.png" alt="Bitcoin Purity mempool" class="purity-logo"></span>
+        <span class="purity-brand">
+          <span class="purity-logo-wrap"><img src="/resources/bitcoin-purity-logo.png" alt="Bitcoin Purity mempool" class="purity-logo"></span>
+          <span class="purity-brand-name">Bitcoin Purity</span>
+        </span>
       }
       <div class="connection-badge">
         <div class="badge bg-warning" *ngIf="connectionState.val === 0" i18n="master-page.offline">Offline</div>

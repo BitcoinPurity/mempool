@@ -112,9 +112,9 @@
             <app-mining-pool [slug]="pool.slug" [name]="pool.name" [showName]="false"[logoStyle]="'width:25px;height:25px;'"></app-mining-pool>
           </td>
           <td class="pool-name"><a [routerLink]="[('/mining/pool/' + pool.slug) | relativeUrl]">{{ pool.name }}</a></td>
-          <td class="" *ngIf="'24h' === this.miningWindowPreference">{{ pool.lastEstimatedHashrate | number: '1.2-2' }} {{ miningStats.miningUnits.hashrateUnit }}</td>
-          <td class="" *ngIf="'3d' === this.miningWindowPreference">{{ pool.lastEstimatedHashrate3d | number: '1.2-2' }} {{ miningStats.miningUnits.hashrateUnit }}</td>
-          <td class="" *ngIf="'1w' === this.miningWindowPreference">{{ pool.lastEstimatedHashrate1w | number: '1.2-2' }} {{ miningStats.miningUnits.hashrateUnit }}</td>
+          <td class="" *ngIf="'24h' === this.miningWindowPreference">{{ pool.lastEstimatedHashrate | number: '1.2-2' }} PH/s</td>
+          <td class="" *ngIf="'3d' === this.miningWindowPreference">{{ pool.lastEstimatedHashrate3d | number: '1.2-2' }} PH/s</td>
+          <td class="" *ngIf="'1w' === this.miningWindowPreference">{{ pool.lastEstimatedHashrate1w | number: '1.2-2' }} PH/s</td>
           <td class="d-flex justify-content-center">
             {{ pool.blockCount }}<span class="d-none d-md-table-cell">&nbsp;({{ pool.share }}%)</span>
           </td>
@@ -144,9 +144,9 @@
           <td class="d-none d-md-table-cell"></td>
           <td class="text-end"></td>
           <td class=""><b i18n="mining.all-miners">All miners</b></td>
-          <td class="" *ngIf="'24h' === this.miningWindowPreference">{{ miningStats.lastEstimatedHashrate| number: '1.2-2' }} {{ miningStats.miningUnits.hashrateUnit }}</td>
-          <td class="" *ngIf="'3d' === this.miningWindowPreference">{{ miningStats.lastEstimatedHashrate3d | number: '1.2-2' }} {{ miningStats.miningUnits.hashrateUnit }}</td>
-          <td class="" *ngIf="'1w' === this.miningWindowPreference">{{ miningStats.lastEstimatedHashrate1w | number: '1.2-2' }} {{ miningStats.miningUnits.hashrateUnit }}</td>
+          <td class="" *ngIf="'24h' === this.miningWindowPreference">{{ miningStats.lastEstimatedHashrate| number: '1.2-2' }} PH/s</td>
+          <td class="" *ngIf="'3d' === this.miningWindowPreference">{{ miningStats.lastEstimatedHashrate3d | number: '1.2-2' }} PH/s</td>
+          <td class="" *ngIf="'1w' === this.miningWindowPreference">{{ miningStats.lastEstimatedHashrate1w | number: '1.2-2' }} PH/s</td>
           <td class=""><b>{{ miningStats.blockCount }}</b></td>
           <td *ngIf="auditAvailable"></td>
           <td *ngIf="auditAvailable"></td>

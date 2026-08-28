@@ -329,13 +329,41 @@ main {
 }
 
 
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&display=swap');
+
+.purity-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 0.5rem;
+}
+
 .purity-logo-wrap {
   height: 42px;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
 
   .purity-logo {
     height: 42px;
     width: auto;
+  }
+}
+
+.purity-brand-name {
+  font-family: 'Cinzel', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+  background: linear-gradient(120deg, #fff4d6 0%, #f0c14b 35%, #d4a017 65%, #fff0c2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 24px rgba(240, 193, 75, 0.15);
+
+  @media (min-width: 768px) {
+    font-size: 1.2rem;
   }
 }
