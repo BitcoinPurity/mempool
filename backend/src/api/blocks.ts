@@ -74,6 +74,34 @@ class Blocks {
     return this.blockSummaries;
   }
 
+  /**
+   * Align in-memory block pool extras with the database after mining-pool updates
+   * or when restoring blocks from Redis/disk cache.
+   */
+  public async $refreshCachedBlockPoolsFromDb(): Promise<number> {
+    if (!config.DATABASE.ENABLED || this.blocks.length === 0) {
+      return 0;
+    }
+
+    let updated = 0;
+    for (const block of this.blocks) {
+      const dbBlock = await blocksRepository.$getBlockByHash(block.id);
+      if (!dbBlock?.extras?.pool) {
+        continue;
+      }
+      if (block.extras?.pool?.id !== dbBlock.extras.pool.id ||
+          block.extras?.pool?.slug !== dbBlock.extras.pool.slug) {
+        block.extras.pool = dbBlock.extras.pool;
+        updated++;
+      }
+    }
+
+    if (updated > 0) {
+      logger.notice(`Refreshed mining pool on ${updated} cached blocks from database`, logger.tags.mining);
+    }
+    return updated;
+  }
+
   public setBlockSummaries(blockSummaries: BlockSummary[]) {
     this.blockSummaries = blockSummaries;
     // Disk-cache restore loads tip extras before summaries; re-align BIP110 counts

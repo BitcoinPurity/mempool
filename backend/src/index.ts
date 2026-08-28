@@ -180,6 +180,17 @@ class Server {
         /** @asyncUnsafe */
         await redisCache.$loadCache();
       }
+      if (config.DATABASE.ENABLED) {
+        const refreshed = await blocks.$refreshCachedBlockPoolsFromDb();
+        if (refreshed > 0) {
+          if (config.REDIS.ENABLED) {
+            void redisCache.$updateBlocks(blocks.getBlocks());
+          }
+          if (config.MEMPOOL.CACHE_ENABLED) {
+            void diskCache.$saveCacheToDisk();
+          }
+        }
+      }
     }
 
     if (config.STATISTICS.ENABLED && config.DATABASE.ENABLED && cluster.isPrimary) {
