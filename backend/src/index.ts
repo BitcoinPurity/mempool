@@ -427,6 +427,10 @@ class Server {
     if (this.wssUnixSocket) {
       this.wssUnixSocket.close();
     }
+    const maybeClose = (bitcoinApi as { close?: () => void }).close;
+    if (typeof maybeClose === 'function') {
+      maybeClose.call(bitcoinApi);
+    }
   }
 }
 

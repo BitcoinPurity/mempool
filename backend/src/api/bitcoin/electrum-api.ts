@@ -9,18 +9,30 @@ import crypto from 'crypto-js';
 import loadingIndicators from '../loading-indicators';
 import memoryCache from '../memory-cache';
 
+const ELECTRUM_RETRY_PERIOD_MS = 5000;
+const ELECTRUM_HISTORY_CACHE_SECONDS = 10;
+const ELECTRUM_BALANCE_TIMEOUT_MS = 15_000;
+const ELECTRUM_HISTORY_TIMEOUT_MS = 30_000;
+
 class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
   private electrumClient: any;
+  private historyRequests = new Map<string, Promise<IElectrumApi.ScriptHashHistory[]>>();
+  private balanceRequests = new Map<string, Promise<IElectrumApi.ScriptHashBalance>>();
 
-  constructor(bitcoinClient: any) {
+  constructor(bitcoinClient: any, electrumClient?: any) {
     super(bitcoinClient);
 
+    if (electrumClient) {
+      this.electrumClient = electrumClient;
+      return;
+    }
+
     const electrumConfig = { client: 'mempool-v2', version: '1.4' };
-    const electrumPersistencePolicy = { retryPeriod: 1000, maxRetry: Number.MAX_SAFE_INTEGER, callback: null };
+    const electrumPersistencePolicy = { retryPeriod: ELECTRUM_RETRY_PERIOD_MS, maxRetry: Number.MAX_SAFE_INTEGER, callback: null };
 
     const electrumCallbacks = {
-      onConnect: (client, versionInfo) => { logger.info(`Connected to Electrum Server at ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT} (${JSON.stringify(versionInfo)})`); },
-      onClose: (client) => { logger.info(`Disconnected from Electrum Server at ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT}`); },
+      onConnect: (client, versionInfo) => { logger.debug(`Electrum connect at ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT} (${JSON.stringify(versionInfo)})`); },
+      onClose: (client) => { logger.debug(`Electrum close at ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT}`); },
       onError: (err) => { logger.err(`Electrum error: ${JSON.stringify(err)}`); },
       onLog: (str) => { logger.debug(str); },
     };
@@ -33,11 +45,62 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
       electrumCallbacks
     );
 
+    this.patchElectrumClientSocketLifecycle();
+
     this.electrumClient.initElectrum(electrumConfig, electrumPersistencePolicy)
       .then(() => { })
       .catch((err) => {
-        logger.err(`Error connecting to Electrum Server at ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT}`);
+        logger.err(`Error connecting to Electrum Server at ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT}: ${err && err.message ? err.message : err}`);
       });
+  }
+
+  /**
+   * @mempool/electrum-client 1.1.9 reconnect() calls initSocket() without
+   * destroying the previous TCP socket. Abandoned sockets stay in CLOSE-WAIT
+   * on electrs when a FIN is sent while a slow RPC is still running.
+   */
+  private patchElectrumClientSocketLifecycle(): void {
+    const client = this.electrumClient;
+    if (!client || typeof client.reconnect !== 'function') {
+      return;
+    }
+
+    const originalReconnect = client.reconnect.bind(client);
+    let reconnectInFlight = false;
+
+    client.reconnect = () => {
+      if (reconnectInFlight) {
+        logger.debug('Electrum reconnect skipped: already in progress');
+        return Promise.resolve(client);
+      }
+      reconnectInFlight = true;
+      logger.debug(`Electrum reconnecting to ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT}`);
+
+      const oldConn = client.conn;
+      if (oldConn) {
+        try {
+          oldConn.removeAllListeners();
+          oldConn.destroy();
+        } catch (e: any) {
+          logger.debug(`Electrum old socket destroy failed: ${e && e.message ? e.message : e}`);
+        }
+      }
+
+      return Promise.resolve()
+        .then(() => originalReconnect())
+        .finally(() => {
+          reconnectInFlight = false;
+        });
+    };
+  }
+
+  public close(): void {
+    logger.debug(`Electrum client shutdown at ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT}`);
+    this.historyRequests.clear();
+    this.balanceRequests.clear();
+    if (this.electrumClient && typeof this.electrumClient.close === 'function') {
+      this.electrumClient.close();
+    }
   }
 
   /** @asyncUnsafe */
@@ -114,12 +177,8 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
 
   async $getScriptHash(scripthash: string): Promise<IEsploraApi.ScriptHash> {
     try {
-      const balance = await this.electrumClient.blockchainScripthash_getBalance(scripthash);
-      let history = memoryCache.get<IElectrumApi.ScriptHashHistory[]>('Scripthash_getHistory', scripthash);
-      if (!history) {
-        history = await this.electrumClient.blockchainScripthash_getHistory(scripthash);
-        memoryCache.set('Scripthash_getHistory', scripthash, history, 2);
-      }
+      const balance = await this.$getEncodedScriptHashBalance(scripthash);
+      const history = await this.$getEncodedScriptHashHistory(scripthash);
 
       const unconfirmed = history ? history.filter((h) => h.fee).length : 0;
 
@@ -161,11 +220,7 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
       loadingIndicators.setProgress('address-' + scripthash, 0);
 
       const transactions: IEsploraApi.Transaction[] = [];
-      let history = memoryCache.get<IElectrumApi.ScriptHashHistory[]>('Scripthash_getHistory', scripthash);
-      if (!history) {
-        history = await this.electrumClient.blockchainScripthash_getHistory(scripthash);
-        memoryCache.set('Scripthash_getHistory', scripthash, history, 2);
-      }
+      const history = await this.$getEncodedScriptHashHistory(scripthash);
       if (!history) {
         throw new Error('failed to get scripthash history');
       }
@@ -238,20 +293,79 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
     return this.electrumClient.blockchainTransaction_getMerkle(txId, tx.status.block_height);
   }
 
-  private $getScriptHashBalance(scriptHash: string): Promise<IElectrumApi.ScriptHashBalance> {
-    return this.electrumClient.blockchainScripthash_getBalance(this.encodeScriptHash(scriptHash));
+  private $getScriptHashBalance(scriptPubKey: string): Promise<IElectrumApi.ScriptHashBalance> {
+    return this.$getEncodedScriptHashBalance(this.encodeScriptHash(scriptPubKey));
   }
 
-  private $getScriptHashHistory(scriptHash: string): Promise<IElectrumApi.ScriptHashHistory[]> {
-    const fromCache = memoryCache.get<IElectrumApi.ScriptHashHistory[]>('Scripthash_getHistory', scriptHash);
+  private $getScriptHashHistory(scriptPubKey: string): Promise<IElectrumApi.ScriptHashHistory[]> {
+    return this.$getEncodedScriptHashHistory(this.encodeScriptHash(scriptPubKey));
+  }
+
+  private $getEncodedScriptHashBalance(encodedScriptHash: string): Promise<IElectrumApi.ScriptHashBalance> {
+    const inFlight = this.balanceRequests.get(encodedScriptHash);
+    if (inFlight) {
+      logger.debug(`Electrum get_balance coalesced: scripthash=${encodedScriptHash} inFlight=${this.balanceRequests.size}`);
+      return inFlight;
+    }
+
+    const rpc: Promise<IElectrumApi.ScriptHashBalance> = this.electrumClient.blockchainScripthash_getBalance(encodedScriptHash);
+    rpc.catch(() => { /* timeout/close may reject after the HTTP caller already left */ });
+
+    const request = this.$rpcWithTimeout('get_balance', encodedScriptHash, ELECTRUM_BALANCE_TIMEOUT_MS, rpc)
+      .finally(() => {
+        this.balanceRequests.delete(encodedScriptHash);
+      });
+
+    this.balanceRequests.set(encodedScriptHash, request);
+    logger.debug(`Electrum get_balance start: scripthash=${encodedScriptHash} inFlight=${this.balanceRequests.size}`);
+    return request;
+  }
+
+  private $getEncodedScriptHashHistory(encodedScriptHash: string): Promise<IElectrumApi.ScriptHashHistory[]> {
+    const fromCache = memoryCache.get<IElectrumApi.ScriptHashHistory[]>('Scripthash_getHistory', encodedScriptHash);
     if (fromCache) {
       return Promise.resolve(fromCache);
     }
-    return this.electrumClient.blockchainScripthash_getHistory(this.encodeScriptHash(scriptHash))
+
+    const inFlight = this.historyRequests.get(encodedScriptHash);
+    if (inFlight) {
+      logger.debug(`Electrum get_history coalesced: scripthash=${encodedScriptHash} inFlight=${this.historyRequests.size}`);
+      return inFlight;
+    }
+
+    const rpc: Promise<IElectrumApi.ScriptHashHistory[]> = this.electrumClient.blockchainScripthash_getHistory(encodedScriptHash)
       .then((history) => {
-        memoryCache.set('Scripthash_getHistory', scriptHash, history, 2);
+        memoryCache.set('Scripthash_getHistory', encodedScriptHash, history, ELECTRUM_HISTORY_CACHE_SECONDS);
         return history;
       });
+    rpc.catch(() => { /* timeout/close may reject after the HTTP caller already left */ });
+
+    const request = this.$rpcWithTimeout('get_history', encodedScriptHash, ELECTRUM_HISTORY_TIMEOUT_MS, rpc)
+      .finally(() => {
+        this.historyRequests.delete(encodedScriptHash);
+      });
+
+    this.historyRequests.set(encodedScriptHash, request);
+    logger.debug(`Electrum get_history start: scripthash=${encodedScriptHash} inFlight=${this.historyRequests.size}`);
+    return request;
+  }
+
+  private $rpcWithTimeout<T>(method: string, scripthash: string, timeoutMs: number, rpc: Promise<T>): Promise<T> {
+    const started = Date.now();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const timeoutPromise = new Promise<T>((_, reject) => {
+      timer = setTimeout(() => {
+        logger.debug(`Electrum RPC timeout: method=${method} scripthash=${scripthash} elapsed=${Date.now() - started}ms inFlight=${this.historyRequests.size + this.balanceRequests.size}`);
+        reject(new Error(`Electrum RPC timeout: ${method}`));
+      }, timeoutMs);
+    });
+
+    return Promise.race([rpc, timeoutPromise]).finally(() => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    });
   }
 
   private encodeScriptHash(scriptPubKey: string): string {
