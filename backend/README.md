@@ -254,3 +254,16 @@ Feb 13 14:55:32 [63246] NOTICE: <lightning> Table hashrates has been truncated
 ```
 
 Reference: https://github.com/mempool/mempool/pull/1269
+
+# Purity node map
+
+The mainnet homepage reads confirmed Purity endpoints through `/api/v1/purity/nodes`.
+Set `PURITY_SEEDER_API_TOKEN` in the backend service environment and provision a readable
+GeoLite2-City file at `MAXMIND.GEOLITE2_CITY`. This feature does not require Lightning,
+an ASN database, or `MAXMIND.ENABLED`.
+
+`PURITY_SEEDER.API_URL` defaults to `https://seed.bitcoinpurity.org`.
+`PURITY_SEEDER.TRUSTED_PROXIES` defaults to loopback CIDRs. Configure only the addresses
+of your reverse proxies, which must overwrite `X-Real-IP`; other clients are identified
+by their TCP address. The token is never part of public configuration or API responses.
+See [the API contract](../docs/api-contract.md) for rate limits and verification outcomes.

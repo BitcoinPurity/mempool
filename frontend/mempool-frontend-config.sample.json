@@ -38,6 +38,7 @@
   "STRATUM_ENABLED": false,
   "SERVICES_API": "https://mempool.space/api/v1/services",
   "PURITY_API_ROOT": "https://mempool.bitcoinpurity.org",
+  "PURITY_NODES_MAP_ENABLED": true,
   "CORE_TIP_HEIGHT_API": "https://mempool.space/api/blocks/tip/height",
   "CORE_TX_API": "https://mempool.space/api/tx/{txid}"
 }

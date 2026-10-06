@@ -1,0 +1,26 @@
+:host { display: block; }
+.purity-node-card { width: 100%; }
+.map-heading, .map-summary, .form-fields { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.map-heading { justify-content: space-between; }
+.map-summary { margin-top: 1rem; font-size: .875rem; }
+.world-map { height: 380px; width: 100%; }
+.map-placeholder { min-height: 380px; display: flex; align-items: center; justify-content: center; }
+.category { background: none; border: 0; padding: 0; color: inherit; display: inline-flex; align-items: center; gap: .35rem; }
+.category.muted { opacity: .45; }
+.category:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+.public-marker, .non-public-marker { width: .6rem; height: .6rem; display: inline-block; flex-shrink: 0; }
+.public-marker { border-radius: 50%; background: #37c89b; }
+.non-public-marker { border: 2px solid #f2b75a; transform: rotate(45deg); margin-right: .2rem; }
+.map-caption { font-size: .8rem; }
+.node-detail, .node-form { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--border-color, #333); }
+.node-detail, td { overflow-wrap: anywhere; }
+.form-fields { align-items: flex-end; }
+.host-field { flex: 1; min-width: 180px; }
+.port-field { width: 100px; }
+label { margin-bottom: .3rem; }
+@media (max-width: 575.98px) {
+  .world-map, .map-placeholder { height: 300px; min-height: 300px; }
+  .map-summary { gap: .5rem 1rem; }
+  .host-field { flex-basis: 100%; }
+  .map-caption > span:last-child { display: block; }
+}

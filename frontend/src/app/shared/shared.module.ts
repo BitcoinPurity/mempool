@@ -139,6 +139,7 @@ import { OnlyVsizeDirective, OnlyWeightDirective } from '@app/shared/components/
 import { GithubLogin } from '@components/github-login.component/github-login.component';
 import { KnotsNodesChartComponent } from '../components/knots-nodes-chart/knots-nodes-chart.component';
 import { OceanHashrateChartComponent } from '../components/ocean-hashrate-chart/ocean-hashrate-chart.component';
+import { PurityNodesMapComponent } from '../components/purity-nodes-map/purity-nodes-map.component';
 
 @NgModule({
   declarations: [
@@ -269,6 +270,7 @@ import { OceanHashrateChartComponent } from '../components/ocean-hashrate-chart/
     BitcoinInvoiceComponent,
     KnotsNodesChartComponent,
     OceanHashrateChartComponent,
+    PurityNodesMapComponent,
   ],
   imports: [
     CommonModule,
@@ -428,6 +430,7 @@ import { OceanHashrateChartComponent } from '../components/ocean-hashrate-chart/
     OnlyWeightDirective,
     KnotsNodesChartComponent,
     OceanHashrateChartComponent,
+    PurityNodesMapComponent,
   ]
 })
 export class SharedModule {

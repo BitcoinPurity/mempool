@@ -228,7 +228,8 @@ describe('Mempool Backend Config', () => {
               let defaultEntry;
               //The string used as the default value, to be checked as a regex, i.e, __MEMPOOL_ENABLED__=${MEMPOOL_ENABLED:=(.*)}
               if (Array.isArray(value)) {
-                defaultEntry = `${replaceStr}=\${${envVarStr}:=[]}`;
+                const arrayDefault = value.length ? `'${JSON.stringify(value)}'` : '[]';
+                defaultEntry = `${replaceStr}=\${${envVarStr}:=${arrayDefault}}`;
                 if (process.env.CI) {
                   console.log(`looking for ${defaultEntry} in the start.sh script`);
                 }
@@ -298,6 +299,25 @@ describe('Mempool Backend Config', () => {
       }
       parseJson(fixture);
     });
+  });
+
+  test('defaults the Seeder endpoint and trusts only local TCP proxies', () => {
+    jest.isolateModules(() => {
+      const config = require('../config').default;
+      expect(config.PURITY_SEEDER).toEqual({
+        API_URL: 'https://seed.bitcoinpurity.org',
+        TRUSTED_PROXIES: ['127.0.0.1/32', '::1/128'],
+      });
+      expect(config.PURITY_SEEDER).not.toHaveProperty('TOKEN');
+    });
+  });
+
+  test('defaults the Purity map display to enabled in frontend and Docker configuration', () => {
+    const sample = JSON.parse(fs.readFileSync(`${__dirname}/../../../frontend/mempool-frontend-config.sample.json`, 'utf8'));
+    const entrypoint = fs.readFileSync(`${__dirname}/../../../docker/frontend/entrypoint.sh`, 'utf8');
+    expect(sample.PURITY_NODES_MAP_ENABLED).toBe(true);
+    expect(entrypoint).toContain('__PURITY_NODES_MAP_ENABLED__=${PURITY_NODES_MAP_ENABLED:=true}');
+    expect(entrypoint).toContain('export __PURITY_NODES_MAP_ENABLED__');
   });
 
 

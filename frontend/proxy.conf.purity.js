@@ -5,6 +5,13 @@ const TARGET = 'https://mempool.bitcoinpurity.org';
 
 module.exports = [
   {
+    context: ['/api/v1/purity/nodes'],
+    target: TARGET,
+    secure: true,
+    changeOrigin: true,
+    proxyTimeout: 70000,
+  },
+  {
     context: [
       '*',
       '/api/**', '!/api/v1/ws',

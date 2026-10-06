@@ -317,6 +317,12 @@ sed -i "s!__REDIS_ENABLED__!${__REDIS_ENABLED__}!g" mempool-config.json
 sed -i "s!__REDIS_UNIX_SOCKET_PATH__!${__REDIS_UNIX_SOCKET_PATH__}!g" mempool-config.json
 sed -i "s!__REDIS_BATCH_QUERY_BASE_SIZE__!${__REDIS_BATCH_QUERY_BASE_SIZE__}!g" mempool-config.json
 
+# PURITY_SEEDER
+__PURITY_SEEDER_API_URL__=${PURITY_SEEDER_API_URL:=https://seed.bitcoinpurity.org}
+__PURITY_SEEDER_TRUSTED_PROXIES__=${PURITY_SEEDER_TRUSTED_PROXIES:='["127.0.0.1/32","::1/128"]'}
+sed -i "s!__PURITY_SEEDER_API_URL__!${__PURITY_SEEDER_API_URL__}!g" mempool-config.json
+sed -i "s!__PURITY_SEEDER_TRUSTED_PROXIES__!${__PURITY_SEEDER_TRUSTED_PROXIES__}!g" mempool-config.json
+
 # FIAT_PRICE
 sed -i "s!__FIAT_PRICE_ENABLED__!${__FIAT_PRICE_ENABLED__}!g" mempool-config.json
 sed -i "s!__FIAT_PRICE_PAID__!${__FIAT_PRICE_PAID__}!g" mempool-config.json

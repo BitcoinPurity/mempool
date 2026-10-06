@@ -167,6 +167,10 @@
     "ACTIVATION_HEIGHT": 961636,
     "ASERT_ANCHOR_HEIGHT": 961632
   },
+  "PURITY_SEEDER": {
+    "API_URL": "https://seed.bitcoinpurity.org",
+    "TRUSTED_PROXIES": ["127.0.0.1/32", "::1/128"]
+  },
   "FIAT_PRICE": {
     "ENABLED": true,
     "PAID": false,

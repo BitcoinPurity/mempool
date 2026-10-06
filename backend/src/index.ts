@@ -49,6 +49,7 @@ import aboutRoutes from './api/about.routes';
 import mempoolBlocks from './api/mempool-blocks';
 import walletApi from './api/services/wallets';
 import stratumApi from './api/services/stratum';
+import purityNodesRoutes from './api/purity/purity-nodes.routes';
 
 class Server {
   private wss: WebSocket.Server | undefined;
@@ -359,6 +360,9 @@ class Server {
 
   setUpHttpApiRoutes(): void {
     bitcoinRoutes.initRoutes(this.app);
+    if (config.MEMPOOL.NETWORK === 'mainnet') {
+      purityNodesRoutes.initRoutes(this.app);
+    }
     if (config.MEMPOOL.OFFICIAL) {
       bitcoinCoreRoutes.initRoutes(this.app);
     }

@@ -437,3 +437,19 @@ Corresponding `docker-compose.yml` overrides:
       MAXMIND_GEOIP2_ISP": "/backend/GeoIP/GeoIP2-ISP.mmdb"
       ...
 ```
+# Purity node map configuration
+
+Pass `PURITY_SEEDER_API_TOKEN` to the backend container as an environment secret.
+Optional environment variables are `PURITY_SEEDER_API_URL` (default
+`https://seed.bitcoinpurity.org`) and `PURITY_SEEDER_TRUSTED_PROXIES` (a JSON array
+of trusted proxy CIDRs). For a Docker bridge, configure the web proxy's address
+explicitly so anonymous visitors have separate submission limits.
+
+Mount your GeoIP directory read-only, for example `./GeoIP:/backend/GeoIP:ro`, and set
+`MAXMIND_GEOLITE2_CITY=/backend/GeoIP/GeoLite2-City.mmdb`. Only the City database is
+needed for the map; it does not depend on Lightning or ASN data. The container must
+be able to read the file. Keep the Token outside the repository and frontend settings.
+
+The frontend map is enabled by default. Set `PURITY_NODES_MAP_ENABLED: "false"` under
+`web.environment` to hide the entire map and its add-node form without changing the
+backend API. Recreate the web container and reload the page after changing this value.
