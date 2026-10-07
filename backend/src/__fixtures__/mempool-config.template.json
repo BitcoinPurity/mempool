@@ -154,6 +154,10 @@
     "PAID": false,
     "API_KEY": "__MEMPOOL_CURRENCY_API_KEY__"
   },
+  "PURITY_SEEDER": {
+    "API_URL": "https://seed.bitcoinpurity.org",
+    "TRUSTED_PROXIES": ["127.0.0.1/32", "::1/128"]
+  },
   "STRATUM": {
     "ENABLED": false,
     "API": "http://localhost:1234"

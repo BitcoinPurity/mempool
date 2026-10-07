@@ -2,7 +2,8 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { CpfpInfo, OptimizedMempoolStats, AddressInformation, LiquidPegs, ITranslators, PoolStat, BlockExtended, TransactionStripped, RewardStats, AuditScore, BlockSizesAndWeights,
   RbfTree, BlockAudit, CurrentPegs, AuditStatus, FederationAddress, FederationUtxo, RecentPeg, PegsVolume, AccelerationInfo, TestMempoolAcceptResult, WalletAddress, Treasury, SubmitPackageResult, ChainTip, StaleTip } from '@interfaces/node-api.interface';
-import { BehaviorSubject, Observable, catchError, filter, map, of, shareReplay, take, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, filter, map, of, shareReplay, take, tap, timeout } from 'rxjs';
+import { PurityNodeSnapshot, PurityNodeSubmission } from '@interfaces/purity-nodes.interface';
 import { StateService } from '@app/services/state.service';
 import { Transaction } from '@interfaces/electrs.interface';
 import { Conversion } from '@app/services/price.service';
@@ -75,6 +76,14 @@ export class ApiService {
 
   list2HStatistics$(): Observable<OptimizedMempoolStats[]> {
     return this.httpClient.get<OptimizedMempoolStats[]>(this.apiBaseUrl + this.apiBasePath + '/api/v1/statistics/2h');
+  }
+
+  getPurityNodes$(): Observable<PurityNodeSnapshot> {
+    return this.httpClient.get<PurityNodeSnapshot>(this.apiBaseUrl + '/api/v1/purity/nodes').pipe(timeout(20000));
+  }
+
+  addPurityNode$(node: { host: string; port?: number }): Observable<PurityNodeSubmission> {
+    return this.httpClient.post<PurityNodeSubmission>(this.apiBaseUrl + '/api/v1/purity/nodes', node).pipe(timeout(65000));
   }
 
   list24HStatistics$(): Observable<OptimizedMempoolStats[]> {

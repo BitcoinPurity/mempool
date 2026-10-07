@@ -69,6 +69,14 @@ if (configContent && configContent.BASE_MODULE === 'liquid') {
 
 PROXY_CONFIG.push(...[
   {
+    context: ['/api/v1/purity/nodes'],
+    target: 'http://localhost:8999',
+    secure: false,
+    changeOrigin: true,
+    proxyTimeout: 70000,
+    onProxyReq: (proxyReq, req) => proxyReq.setHeader('X-Real-IP', req.socket.remoteAddress),
+  },
+  {
     context: ['/testnet/api/v1/lightning/**'],
     target: `http://localhost:8999`,
     secure: false,

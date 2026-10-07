@@ -2,6 +2,14 @@
 
 You can build and run the Mempool frontend and proxy to the production Mempool backend (for easier frontend development), or you can connect it to your own backend for a full Mempool development instance, custom deployment, etc.
 
+## Purity node map visibility
+
+`PURITY_NODES_MAP_ENABLED` defaults to `true`. To hide the mainnet map and its add-node
+form, set `"PURITY_NODES_MAP_ENABLED": false` in `mempool-frontend-config.json` and
+regenerate the configuration with `npm run generate-config` before building or serving.
+Reload the page after deploying the updated configuration. A hidden map does not fetch
+nodes or start its refresh timer; the backend API remains available.
+
 Jump to a section in this doc:
 - [Quick Setup for Frontend Development](#quick-setup-for-frontend-development)
 - [Manual Frontend Setup](#manual-setup)

@@ -10605,6 +10605,114 @@
           <context context-type="linenumber">173</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="purity.nodes.title" datatype="html">
+        <source>Purity Nodes World Map</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.public" datatype="html">
+        <source>Public P2P</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.non-public" datatype="html">
+        <source>Non-public / reachability unconfirmed</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.probe-success" datatype="html">
+        <source>Outbound P2P handshake succeeded</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.probe-failed" datatype="html">
+        <source>Recent probe failed</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.probe-unknown" datatype="html">
+        <source>Not yet probed</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.unknown-location" datatype="html">
+        <source>Location unavailable</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.unknown-time" datatype="html">
+        <source>Unknown</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.height" datatype="html">
+        <source>Height</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.verified-at" datatype="html">
+        <source>Last chain verification</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.duplicate" datatype="html">
+        <source>Node already exists and was rechecked.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.confirmed" datatype="html">
+        <source>Purity node confirmed.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.other" datatype="html">
+        <source>This is not a Purity node.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.inconclusive" datatype="html">
+        <source>Verification was inconclusive. Only confirmed nodes appear on the map.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.timeout" datatype="html">
+        <source>The verification result has not returned. Refresh the list later; the node may already have been added.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.rate-limit" datatype="html">
+        <source>Too many verification requests. Please try again later.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.invalid-input" datatype="html">
+        <source>Enter a public IPv4 or IPv6 address and an integer port from 1 to 65535.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.submit-error" datatype="html">
+        <source>Unable to obtain a verification result. Please refresh the list or try again later.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.add" datatype="html">
+        <source>Add node</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.load-error" datatype="html">
+        <source>Unable to load the node map. Please try again later.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.retry" datatype="html">
+        <source>Retry</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.loading" datatype="html">
+        <source>Loading node map…</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.total" datatype="html">
+        <source>Total nodes</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.unlocated" datatype="html">
+        <source>Location unavailable</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.empty" datatype="html">
+        <source>No confirmed Purity nodes to display yet.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.snapshot" datatype="html">
+        <source>Snapshot</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.estimated" datatype="html">
+        <source>Locations are estimated from IP addresses.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.observation" datatype="html">
+        <source>P2P status reflects this Seeder's observations. A failed or missing probe does not prove that the port is permanently closed.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.details" datatype="html">
+        <source>Node details</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.endpoint" datatype="html">
+        <source>Node address</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.position" datatype="html">
+        <source>Location</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.probe" datatype="html">
+        <source>P2P observation</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.form-help" datatype="html">
+        <source>Enter a public IP address. Leave the port blank to use 8333. The Seeder will verify the node before it appears on the map.</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.ip" datatype="html">
+        <source>IPv4 / IPv6 address</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.port" datatype="html">
+        <source>Port</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.verify" datatype="html">
+        <source>Add and verify</source>
+      </trans-unit>
     </body>
   </file>
 </xliff>

@@ -1,0 +1,68 @@
+<div class="card purity-node-card" data-cy="purity-nodes">
+  <div class="card-body">
+    <div class="map-heading">
+      <h5 class="card-title mb-0" i18n="@@purity.nodes.title">Purity Nodes World Map</h5>
+      <button type="button" class="btn btn-sm btn-primary" data-cy="purity-add-toggle" [attr.aria-expanded]="showForm"
+        aria-controls="purity-node-form" (click)="showForm = !showForm" i18n="@@purity.nodes.add">Add node</button>
+    </div>
+
+    <div *ngIf="loadError" class="alert alert-warning mt-3" role="alert" data-cy="purity-load-error">
+      <span i18n="@@purity.nodes.load-error">Unable to load the node map. Please try again later.</span>
+      <button type="button" class="btn btn-sm btn-outline-light ms-2" data-cy="purity-retry" (click)="refresh()" i18n="@@purity.nodes.retry">Retry</button>
+    </div>
+    <div *ngIf="loading && !snapshot" class="map-placeholder" role="status">
+      <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+      <span i18n="@@purity.nodes.loading">Loading node map…</span>
+    </div>
+
+    <ng-container *ngIf="snapshot">
+      <div class="map-summary">
+        <span data-cy="purity-total"><span i18n="@@purity.nodes.total">Total nodes</span>: <strong>{{ snapshot.nodes.length }}</strong></span>
+        <button type="button" class="category" data-cy="purity-public" [attr.aria-pressed]="publicVisible"
+          [class.muted]="!publicVisible" (click)="toggleCategory(true)"><span class="public-marker" aria-hidden="true"></span>{{ publicLabel }}: <strong>{{ publicCount }}</strong></button>
+        <button type="button" class="category" data-cy="purity-non-public" [attr.aria-pressed]="nonPublicVisible"
+          [class.muted]="!nonPublicVisible" (click)="toggleCategory(false)"><span class="non-public-marker" aria-hidden="true"></span>{{ nonPublicLabel }}: <strong>{{ nonPublicCount }}</strong></button>
+        <span data-cy="purity-unlocated"><span i18n="@@purity.nodes.unlocated">Location unavailable</span>: {{ unlocatedCount }}</span>
+      </div>
+      <div *ngIf="snapshot.nodes.length === 0" class="text-muted text-center my-3" i18n="@@purity.nodes.empty">No confirmed Purity nodes to display yet.</div>
+      <div class="world-map" data-cy="purity-chart" *browserOnly echarts [initOpts]="chartInitOptions" [options]="chartOptions" (chartInit)="onChartInit($event)"></div>
+      <div class="map-caption text-muted">
+        <span i18n="@@purity.nodes.snapshot">Snapshot</span>: {{ snapshot.updated_at * 1000 | date:'medium' }}
+        <span class="ms-sm-2" i18n="@@purity.nodes.estimated">Locations are estimated from IP addresses.</span>
+      </div>
+      <p class="map-caption text-muted mt-1" i18n="@@purity.nodes.observation">P2P status reflects this Seeder's observations. A failed or missing probe does not prove that the port is permanently closed.</p>
+
+      <div *ngIf="selectedNode" class="node-detail" aria-live="polite">
+        <strong>{{ endpoint(selectedNode) }}</strong> · {{ location(selectedNode) }} · {{ probeStatus(selectedNode) }}
+        <div>{{ selectedNode.user_agent }} · <span i18n="@@purity.nodes.height">Height</span>: {{ selectedNode.height }}</div>
+        <div><span i18n="@@purity.nodes.verified-at">Last chain verification</span>: {{ selectedNode.last_success ? (selectedNode.last_success * 1000 | date:'medium') : '—' }}</div>
+      </div>
+      <button type="button" class="btn btn-sm btn-link px-0" data-cy="purity-node-list-toggle" [attr.aria-expanded]="showList"
+        aria-controls="purity-node-list" (click)="showList = !showList" i18n="@@purity.nodes.details">Node details</button>
+      <div *ngIf="showList" id="purity-node-list" class="table-responsive" data-cy="purity-node-list">
+        <table class="table table-sm mb-0">
+          <thead><tr><th i18n="@@purity.nodes.endpoint">Node address</th><th i18n="@@purity.nodes.position">Location</th><th i18n="@@purity.nodes.probe">P2P observation</th><th i18n="@@purity.nodes.height">Height</th></tr></thead>
+          <tbody><tr *ngFor="let node of snapshot.nodes"><td>{{ endpoint(node) }}</td><td>{{ location(node) }}</td><td>{{ probeStatus(node) }}</td><td>{{ node.height }}</td></tr></tbody>
+        </table>
+      </div>
+    </ng-container>
+
+    <form *ngIf="showForm" id="purity-node-form" class="node-form" [formGroup]="form" (ngSubmit)="submit()">
+      <p class="text-muted mb-2" i18n="@@purity.nodes.form-help">Enter a public IP address. Leave the port blank to use 8333. The Seeder will verify the node before it appears on the map.</p>
+      <div class="form-fields">
+        <div class="host-field"><label for="purity-host" i18n="@@purity.nodes.ip">IPv4 / IPv6 address</label>
+          <input id="purity-host" class="form-control" type="text" formControlName="host" autocomplete="off" spellcheck="false" data-cy="purity-host" [readOnly]="submitting"
+            (blur)="form.controls.host.setValue(form.controls.host.value.trim())"></div>
+        <div class="port-field"><label for="purity-port" i18n="@@purity.nodes.port">Port</label>
+          <input id="purity-port" class="form-control" type="number" min="1" max="65535" step="1" formControlName="port" data-cy="purity-port" [readOnly]="submitting"></div>
+        <button type="submit" class="btn btn-primary" data-cy="purity-submit" [disabled]="form.invalid || submitting">
+          <span *ngIf="submitting" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+          <span i18n="@@purity.nodes.verify">Add and verify</span>
+        </button>
+      </div>
+      <p *ngIf="form.invalid && form.touched" class="text-warning mt-2 mb-0" i18n="@@purity.nodes.invalid-input">Enter a public IPv4 or IPv6 address and an integer port from 1 to 65535.</p>
+    </form>
+    <div *ngIf="submissionMessage" class="alert mt-3 mb-0" [class.alert-warning]="submissionError" [class.alert-success]="!submissionError"
+      role="status" data-cy="purity-add-result">{{ submissionMessage }}</div>
+  </div>
+</div>

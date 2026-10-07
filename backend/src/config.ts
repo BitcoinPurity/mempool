@@ -180,6 +180,10 @@ interface IConfig {
     ACTIVATION_HEIGHT: number;
     /** ASERT anchor height (enforcement-chain block). */
     ASERT_ANCHOR_HEIGHT: number;
+  },
+  PURITY_SEEDER: {
+    API_URL: string;
+    TRUSTED_PROXIES: string[];
   }
 }
 
@@ -359,6 +363,10 @@ const defaults: IConfig = {
   'PURITY': {
     'ACTIVATION_HEIGHT': 961636,
     'ASERT_ANCHOR_HEIGHT': 961632,
+  },
+  'PURITY_SEEDER': {
+    'API_URL': 'https://seed.bitcoinpurity.org',
+    'TRUSTED_PROXIES': ['127.0.0.1/32', '::1/128'],
   }
 };
 
@@ -384,6 +392,7 @@ class Config implements IConfig {
   WALLETS: IConfig['WALLETS'];
   STRATUM: IConfig['STRATUM'];
   PURITY: IConfig['PURITY'];
+  PURITY_SEEDER: IConfig['PURITY_SEEDER'];
 
   constructor() {
     const configs = this.merge(configFromFile, defaults);
@@ -408,6 +417,7 @@ class Config implements IConfig {
     this.WALLETS = configs.WALLETS;
     this.STRATUM = configs.STRATUM;
     this.PURITY = configs.PURITY;
+    this.PURITY_SEEDER = configs.PURITY_SEEDER;
   }
 
   merge = (...objects: object[]): IConfig => {

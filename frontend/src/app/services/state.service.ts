@@ -96,6 +96,7 @@ export interface Env {
    * Empty string keeps same-origin relative requests ("/api/...").
    */
   PURITY_API_ROOT?: string;
+  PURITY_NODES_MAP_ENABLED: boolean;
   CORE_TIP_HEIGHT_API?: string;
   CORE_TX_API?: string;
   customize?: Customization;
@@ -146,6 +147,7 @@ const defaultEnv: Env = {
   'SERVICES_API': 'https://mempool.space/api/v1/services',
   'TWIDGET_API': 'https://mempool.ninja',
   'PURITY_API_ROOT': '',
+  'PURITY_NODES_MAP_ENABLED': true,
   'CORE_TIP_HEIGHT_API': 'https://mempool.space/api/blocks/tip/height',
   'CORE_TX_API': 'https://mempool.space/api/tx/{txid}',
   'PROD_DOMAINS': [],
