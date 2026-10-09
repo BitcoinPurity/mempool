@@ -1,12 +1,12 @@
 {
   "OFFICIAL_MEMPOOL_SPACE": true,
-  "TESTNET_ENABLED": true,
-  "TESTNET4_ENABLED": true,
+  "TESTNET_ENABLED": false,
+  "TESTNET4_ENABLED": false,
   "LIQUID_ENABLED": false,
   "LIQUID_TESTNET_ENABLED": false,
-  "STRATUM_ENABLED": true,
-  "SIGNET_ENABLED": true,
-  "MEMPOOL_WEBSITE_URL": "https://mempool.space",
+  "STRATUM_ENABLED": false,
+  "SIGNET_ENABLED": false,
+  "MEMPOOL_WEBSITE_URL": "https://mempool.bitcoinpurity.org",
   "LIQUID_WEBSITE_URL": "https://liquid.network",
   "MAINNET_BLOCK_AUDIT_START_HEIGHT": 773911,
   "TESTNET_BLOCK_AUDIT_START_HEIGHT": 2417829,
@@ -18,5 +18,6 @@
   "ACCELERATOR_BUTTON": false,
   "PUBLIC_ACCELERATIONS": false,
   "AUDIT": true,
-  "PROD_DOMAINS": "mempool.space"
+  "PROD_DOMAINS": "mempool.bitcoinpurity.org",
+  "PURITY_NODES_MAP_ENABLED": true
 }

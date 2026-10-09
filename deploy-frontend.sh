@@ -1,0 +1,1 @@
+./production/mempool-deploy-frontend   --site browser   --repo /opt/mempool   --ref origin/main   --public-html /opt/mempool/frontend/dist/mempool   --config /opt/mempool/production/mempool-frontend-config.mainnet.json
