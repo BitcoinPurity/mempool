@@ -1,7 +1,7 @@
 import { SafeResourceUrl } from '@angular/platform-browser';
 import { ILoadingIndicators } from '@app/services/state.service';
 import { Transaction } from '@interfaces/electrs.interface';
-import { Acceleration, Bip110DeploymentInfo, BlockExtended, DifficultyAdjustment, RbfTree, TransactionStripped } from '@interfaces/node-api.interface';
+import { Acceleration, PurityReducedDataStatus, BlockExtended, DifficultyAdjustment, RbfTree, TransactionStripped } from '@interfaces/node-api.interface';
 
 export interface WebsocketResponse {
   backend?: 'esplora' | 'electrum' | 'none';
@@ -28,7 +28,7 @@ export interface WebsocketResponse {
   loadingIndicators?: ILoadingIndicators;
   backendInfo?: IBackendInfo;
   da?: DifficultyAdjustment;
-  bip110deployment?: Bip110DeploymentInfo;
+  bip110deployment?: PurityReducedDataStatus;
   fees?: Recommendedfees;
   'track-tx'?: string;
   'track-address'?: string;

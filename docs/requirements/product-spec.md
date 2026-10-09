@@ -27,3 +27,11 @@ watchdog 仍在 120 秒报告当前等待阶段；每次调用退出时始终清
 前端取消 Archive / Prune 类型展示，包括类型颜色、图例、悬浮提示、选中详情和列表类型列。统一用绿色实心圆表示可访问，橙色空心菱形表示非公开／未确认，不读取 `node_type`。
 
 后端类型识别及响应契约不变：依据 Seeder 库存中节点声明的服务能力，`NODE_NETWORK` 表示 Archive；仅有 `NODE_NETWORK_LIMITED` 表示 Prune；两个标志都有时为 Archive。缺失、无法精确读取或未声明上述能力时为未知。类型与可访问状态相互独立。本次调整仅修改前端及对应文档，不修改后端或 Seeder，不包含部署。
+
+## REQ-005：永久 Reduced Data 共识状态
+
+主网首页显示 “BIP-110 Reduced Data Rules”：高度 961637 起为 “Permanently Enforced”，更早高度为 “Not Yet Enforced”；显示已核实激活高度及 “Expiration: None”。依据 [Purity 共识规范](https://github.com/saltduck/bitcoinpurity/blob/b711f44afd1dee477674de997f81d544f1f432c6/doc/purity-consensus.md)，永久规则在硬分叉首块 961637 激活，永不过期，激活后无需版本位 4 强制投票。该高度独立于本项目 ASERT 配置；ASERT 行为不变。其他网络缺少固定 Purity 激活参数，省略此状态且不展示该卡片。
+
+前后端使用精简 `PurityReducedDataStatus`，保留 `bip110deployment` 传输字段名。状态只根据主网及内存高度同步计算，无缓存、轮询、RPC、Electrum、SQL 或历史扫描；初始数据与订阅区块的实时客户端都接收状态。保留区块、mempool、费用和难度等现有内容。
+
+删除临时部署的阈值、锁定、强制投票、到期倒计时和关联类型／样式。历史违规分类扫描的进度条、检测、计数与权重、徽章、版本位记录和持久化结果均保持原有行为。永久执行状态不用于重写历史分类，也不表示所有历史违规都是当时的共识无效交易。

@@ -23,3 +23,28 @@ REQ-004 新增 `node_type: "archive" | "prune" | "unknown"`，独立于 `p2p_rea
 ## REQ-003：同步诊断
 
 本需求不增删公开端点，不改变请求／响应格式。`GET /api/v1/fees/recommended` 沿用未同步时的 HTTP 503 和正常同步后的成功响应。诊断仅写入现有后端 logger；5 秒阈值只控制日志，不改变 RPC 超时、认证、序列化或结果。Redis 与磁盘缓存格式不变，无数据库迁移。
+
+## REQ-005：`bip110deployment` 永久状态契约
+
+WebSocket `action=init`、`GET /api/v1/init-data` 以及订阅 `blocks` 的新区块消息使用同一个字段：
+
+```json
+{
+  "bip110deployment": {
+    "state": "active",
+    "permanent": true,
+    "currentHeight": 968113,
+    "activationHeight": 961637,
+    "expiryHeight": null
+  }
+}
+```
+
+- `state` 仅为 `active` 或 `not_active`：表示当前高度的 **Purity 永久 RDTS**，主网 961637 起 active。`not_active` 不追溯或推测早期 Knots/BIP9 部署状态。
+- `permanent` 固定 true：永久规则不会到期，状态可随 IBD／重组高度反映激活边界。
+- `currentHeight` 为初始快照内存高度或新区块公告高度。
+- `activationHeight` 为已核实的 961637；类型允许 null，前端收到 null 时不显示激活高度。主网实现不返回未经确认的值。
+- `expiryHeight` 固定 null。没有 expired、阈值、投票数量、锁定、强制投票或任何倒计时字段。
+- 提供器遇到其他网络或未知高度返回 null；沿用快照序列化规则省略该字段。其他网络不显示主网永久状态卡。
+
+字段名保留，载荷已变更，前后端须作为配套版本发布。旧载荷不作静默兼容；第三方消费者应按新类型更新。区块公告、mempool 变更／确认、费用、难度及其他 WebSocket 字段不变。历史 `loadingIndicators['bip110-scan']`、违规标志、区块计数／权重、摘要与徽章契约均不变。
