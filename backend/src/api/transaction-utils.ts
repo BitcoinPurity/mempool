@@ -7,6 +7,8 @@ import logger from '../logger';
 import config from '../config';
 import pLimit from '../utils/p-limit';
 
+const SLOW_TRANSACTION_FETCH_THRESHOLD_MS = 5000;
+
 class TransactionUtils {
   constructor() { }
 
@@ -79,9 +81,47 @@ class TransactionUtils {
   public async $getMempoolTransactionsExtended(txids: string[], addPrevouts = false, lazyPrevouts = false, forceCore = false): Promise<MempoolTransactionExtended[]> {
     if (forceCore || config.MEMPOOL.BACKEND !== 'esplora') {
       const limiter = pLimit(8); // Run 8 requests at a time
+      const start = Date.now();
+      let slow = 0;
+      let maxFetchDuration = 0;
+      logger.debug(`[MEMPOOL_FETCH] requested=${txids.length} concurrency=8 started`);
       const results = await Promise.allSettled(txids.map(
-        txid => limiter(() => this.$getMempoolTransactionExtended(txid, addPrevouts, lazyPrevouts, forceCore))
+        txid => limiter(async () => {
+          const fetchStart = Date.now();
+          try {
+            return await this.$getMempoolTransactionExtended(txid, addPrevouts, lazyPrevouts, forceCore);
+          } finally {
+            const duration = Date.now() - fetchStart;
+            maxFetchDuration = Math.max(maxFetchDuration, duration);
+            if (duration >= SLOW_TRANSACTION_FETCH_THRESHOLD_MS) {
+              slow++;
+            }
+          }
+        })
       ));
+      let failed = 0;
+      let timeouts = 0;
+      let socketTimeouts = 0;
+      let notFound = 0;
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          failed++;
+          if (result.reason?.code === 'ETIMEDOUT') {
+            timeouts++;
+          } else if (result.reason?.code === 'ESOCKETTIMEDOUT') {
+            socketTimeouts++;
+          } else if (result.reason?.code === -5) {
+            notFound++;
+          }
+        }
+      }
+      const duration = Date.now() - start;
+      const message = `[MEMPOOL_FETCH] requested=${txids.length} fetched=${results.length - failed} failed=${failed} slow=${slow} max_fetch=${maxFetchDuration}ms duration=${duration}ms threshold=${SLOW_TRANSACTION_FETCH_THRESHOLD_MS}ms ETIMEDOUT=${timeouts} ESOCKETTIMEDOUT=${socketTimeouts} rpc_-5=${notFound} other_errors=${failed - timeouts - socketTimeouts - notFound}`;
+      if (failed || slow || duration >= SLOW_TRANSACTION_FETCH_THRESHOLD_MS) {
+        logger.warn(message);
+      } else {
+        logger.debug(message);
+      }
       return results.filter(reply => reply.status === 'fulfilled')
         .map(r => (r as PromiseFulfilledResult<MempoolTransactionExtended>).value);
     } else {
