@@ -7,9 +7,13 @@ import mempool from '../mempool';
 import { TransactionExtended } from '../../mempool.interfaces';
 import transactionUtils from '../transaction-utils';
 import { Common } from '../common';
+import logger from '../../logger';
+
+const SLOW_RPC_THRESHOLD_MS = 5000;
 
 class BitcoinApi implements AbstractBitcoinApi {
   private rawMempoolCache: IBitcoinApi.RawMempool | null = null;
+  private rawMempoolCachePromise: Promise<IBitcoinApi.RawMempool> | null = null;
   protected bitcoindClient: any;
 
   constructor(bitcoinClient: any) {
@@ -43,7 +47,14 @@ class BitcoinApi implements AbstractBitcoinApi {
       return this.$addPrevouts(txInMempool);
     }
 
+    const rpcStart = Date.now();
     return this.bitcoindClient.getRawTransaction(txId, true)
+      .finally(() => {
+        const duration = Date.now() - rpcStart;
+        if (duration >= SLOW_RPC_THRESHOLD_MS) {
+          logger.warn(`[MEMPOOL_RPC] getrawtransaction duration=${duration}ms threshold=${SLOW_RPC_THRESHOLD_MS}ms slow=true`);
+        }
+      })
       .then((transaction: IBitcoinApi.Transaction) => {
         if (skipConversion) {
           transaction.vout.forEach((vout) => {
@@ -381,7 +392,29 @@ class BitcoinApi implements AbstractBitcoinApi {
     }
     let mempoolEntry: IBitcoinApi.MempoolEntry;
     if (!mempool.isInSync() && !this.rawMempoolCache) {
-      this.rawMempoolCache = await this.$getRawMempoolVerbose();
+      if (!this.rawMempoolCachePromise) {
+        const start = Date.now();
+        logger.info('[MEMPOOL_SYNC] initializing verbose mempool metadata started');
+        this.rawMempoolCachePromise = this.$getRawMempoolVerbose()
+          .then(cache => {
+            this.rawMempoolCache = cache;
+            const duration = Date.now() - start;
+            const message = `[MEMPOOL_SYNC] verbose mempool metadata transactions=${Object.keys(cache).length} duration=${duration}ms threshold=${SLOW_RPC_THRESHOLD_MS}ms slow=${duration >= SLOW_RPC_THRESHOLD_MS}`;
+            if (duration >= SLOW_RPC_THRESHOLD_MS) {
+              logger.warn(message);
+            } else {
+              logger.info(message);
+            }
+            return cache;
+          }, error => {
+            logger.warn(`[MEMPOOL_SYNC] verbose mempool metadata failed duration=${Date.now() - start}ms`);
+            throw error;
+          })
+          .finally(() => {
+            this.rawMempoolCachePromise = null;
+          });
+      }
+      await this.rawMempoolCachePromise;
     }
     if (this.rawMempoolCache && this.rawMempoolCache[transaction.txid]) {
       mempoolEntry = this.rawMempoolCache[transaction.txid];

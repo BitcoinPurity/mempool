@@ -15,6 +15,8 @@ import redisCache from './redis-cache';
 import blocks from './blocks';
 import { ClusterMempool } from '../cluster-mempool/cluster-mempool';
 
+const SLOW_MEMPOOL_BATCH_THRESHOLD_MS = 5000;
+
 class Mempool {
   private inSync: boolean = false;
   private mempoolCacheDelta: number = -1;
@@ -249,194 +251,251 @@ class Mempool {
     // warn if this run stalls the main loop for more than 2 minutes
     const timer = this.startTimer();
 
-    const start = new Date().getTime();
-    let hasChange: boolean = false;
-    const currentMempoolSize = Object.keys(this.mempoolCache).length;
-    this.updateTimerProgress(timer, 'got raw mempool');
-    const diff = transactions.length - currentMempoolSize;
-    let newTransactions: MempoolTransactionExtended[] = [];
-
-    this.mempoolCacheDelta = Math.abs(diff);
-
-    if (!this.inSync) {
-      loadingIndicators.setProgress('mempool', currentMempoolSize / transactions.length * 100);
-    }
-
-    // https://github.com/mempool/mempool/issues/3283
-    const logEsplora404 = (missingTxCount, threshold, time) => {
-      const log = `In the past ${time / 1000} seconds, esplora tx API replied ${missingTxCount} times with a 404 error code while updating nodejs backend mempool`;
-      if (missingTxCount >= threshold) {
-        logger.warn(log);
-      } else if (missingTxCount > 0) {
-        logger.debug(log);
+    try {
+      const start = new Date().getTime();
+      let hasChange: boolean = false;
+      this.updateTimerProgress(timer, 'calculating missing transactions');
+      const cachedTxids = Object.keys(this.mempoolCache);
+      const currentMempoolSize = cachedTxids.length;
+      const coreTxids = new Set(transactions);
+      const missing = transactions.filter(txid => !this.mempoolCache[txid]).length;
+      const stale = cachedTxids.filter(txid => !coreTxids.has(txid)).length;
+      const initialSync = !this.inSync;
+      const summary = `[MEMPOOL_SYNC] mode=${currentMempoolSize ? 'incremental' : 'full'} inSync=${this.inSync} core=${transactions.length} cached=${currentMempoolSize} missing=${missing} stale=${stale}`;
+      if (initialSync) {
+        logger.info(summary);
+      } else {
+        logger.debug(summary);
       }
-    };
+      const diff = transactions.length - currentMempoolSize;
+      let newTransactions: MempoolTransactionExtended[] = [];
 
-    let intervalTimer = Date.now();
+      this.mempoolCacheDelta = Math.abs(diff);
 
-    let loaded = false;
-    if (config.MEMPOOL.BACKEND === 'esplora' && currentMempoolSize < transactions.length * 0.5 && transactions.length > 20_000) {
-      this.inSync = false;
-      logger.info(`Missing ${transactions.length - currentMempoolSize} mempool transactions, attempting to reload in bulk from esplora`);
-      try {
-        newTransactions = await this.$reloadMempool(transactions.length);
-        if (config.REDIS.ENABLED) {
-          for (const tx of newTransactions) {
-            await redisCache.$addTransaction(tx);
-          }
+      if (!this.inSync) {
+        loadingIndicators.setProgress('mempool', currentMempoolSize / transactions.length * 100);
+      }
+
+      // https://github.com/mempool/mempool/issues/3283
+      const logEsplora404 = (missingTxCount, threshold, time) => {
+        const log = `In the past ${time / 1000} seconds, esplora tx API replied ${missingTxCount} times with a 404 error code while updating nodejs backend mempool`;
+        if (missingTxCount >= threshold) {
+          logger.warn(log);
+        } else if (missingTxCount > 0) {
+          logger.debug(log);
         }
-        loaded = true;
-      } catch (e) {
-        logger.err('failed to load mempool in bulk from esplora, falling back to fetching individual transactions');
-      }
-    }
+      };
 
-    if (!loaded) {
-      const remainingTxids = transactions.filter(txid => !this.mempoolCache[txid]);
-      const sliceLength = config.ESPLORA.BATCH_QUERY_BASE_SIZE;
-      for (let i = 0; i < Math.ceil(remainingTxids.length / sliceLength); i++) {
-        const slice = remainingTxids.slice(i * sliceLength, (i + 1) * sliceLength);
-        const txs = await transactionUtils.$getMempoolTransactionsExtended(slice, false, false, false);
-        logger.debug(`fetched ${txs.length} transactions`);
-        this.updateTimerProgress(timer, 'fetched new transactions');
+      let intervalTimer = Date.now();
 
-        for (const transaction of txs) {
-          this.mempoolCache[transaction.txid] = transaction;
-          if (this.inSync) {
-            this.txPerSecondArray.push(new Date().getTime());
-            this.vBytesPerSecondArray.push({
-              unixTime: new Date().getTime(),
-              vSize: transaction.vsize,
-            });
-          }
-          hasChange = true;
-          newTransactions.push(transaction);
-
+      let loaded = false;
+      if (config.MEMPOOL.BACKEND === 'esplora' && currentMempoolSize < transactions.length * 0.5 && transactions.length > 20_000) {
+        this.inSync = false;
+        logger.info(`Missing ${transactions.length - currentMempoolSize} mempool transactions, attempting to reload in bulk from esplora`);
+        try {
+          this.updateTimerProgress(timer, 'reloading mempool in bulk from esplora');
+          newTransactions = await this.$reloadMempool(transactions.length);
           if (config.REDIS.ENABLED) {
-            await redisCache.$addTransaction(transaction);
-          }
-        }
-
-        if (txs.length < slice.length) {
-          const missing = slice.length - txs.length;
-          if (config.MEMPOOL.BACKEND === 'esplora') {
-            this.missingTxCount += missing;
-          }
-          logger.debug(`Error finding ${missing} transactions in the mempool: `);
-        }
-
-        if (Date.now() - intervalTimer > Math.max(pollRate * 2, 5_000)) {
-          if (this.inSync) {
-            // Break and restart mempool loop if we spend too much time processing
-            // new transactions that may lead to falling behind on block height
-            logger.debug('Breaking mempool loop because the 5s time limit exceeded.');
-            break;
-          } else {
-            const progress = (currentMempoolSize + newTransactions.length) / transactions.length * 100;
-            logger.debug(`Mempool is synchronizing. Processed ${newTransactions.length}/${diff} txs (${Math.round(progress)}%)`);
-            if (Math.floor(progress) < 100) {
-              loadingIndicators.setProgress('mempool', progress);
+            this.updateTimerProgress(timer, 'updating Redis cache after bulk reload');
+            for (const tx of newTransactions) {
+              await redisCache.$addTransaction(tx);
             }
-            intervalTimer = Date.now();
+          }
+          loaded = true;
+        } catch (e) {
+          logger.err('failed to load mempool in bulk from esplora, falling back to fetching individual transactions');
+        }
+      }
+
+      if (!loaded) {
+        const remainingTxids = transactions.filter(txid => !this.mempoolCache[txid]);
+        const sliceLength = config.ESPLORA.BATCH_QUERY_BASE_SIZE;
+        const batchCount = Math.ceil(remainingTxids.length / sliceLength);
+        for (let i = 0; i < batchCount; i++) {
+          const slice = remainingTxids.slice(i * sliceLength, (i + 1) * sliceLength);
+          const batch = `${i + 1}/${batchCount}`;
+          this.updateTimerProgress(timer, `fetching transaction batch ${batch}`);
+          const batchStart = Date.now();
+          const started = `[MEMPOOL_SYNC] batch=${batch} requested=${slice.length} started`;
+          if (initialSync) {
+            logger.info(started);
+          } else {
+            logger.debug(started);
+          }
+          let txs: MempoolTransactionExtended[];
+          try {
+            txs = await transactionUtils.$getMempoolTransactionsExtended(slice, false, false, false);
+          } catch (error) {
+            logger.warn(`[MEMPOOL_SYNC] batch=${batch} requested=${slice.length} aborted duration=${Date.now() - batchStart}ms`);
+            throw error;
+          }
+          const duration = Date.now() - batchStart;
+          const result = `[MEMPOOL_SYNC] batch=${batch} fetched=${txs.length} failed=${slice.length - txs.length} duration=${duration}ms threshold=${SLOW_MEMPOOL_BATCH_THRESHOLD_MS}ms slow=${duration >= SLOW_MEMPOOL_BATCH_THRESHOLD_MS}`;
+          if (txs.length < slice.length || duration >= SLOW_MEMPOOL_BATCH_THRESHOLD_MS) {
+            logger.warn(result);
+          } else if (initialSync) {
+            logger.info(result);
+          } else {
+            logger.debug(result);
+          }
+          this.updateTimerProgress(timer, 'processing fetched transactions');
+
+          for (const transaction of txs) {
+            this.mempoolCache[transaction.txid] = transaction;
+            if (this.inSync) {
+              this.txPerSecondArray.push(new Date().getTime());
+              this.vBytesPerSecondArray.push({
+                unixTime: new Date().getTime(),
+                vSize: transaction.vsize,
+              });
+            }
+            hasChange = true;
+            newTransactions.push(transaction);
+
+            if (config.REDIS.ENABLED) {
+              this.updateTimerProgress(timer, 'updating Redis cache with fetched transactions');
+              await redisCache.$addTransaction(transaction);
+            }
+          }
+
+          if (txs.length < slice.length) {
+            const missing = slice.length - txs.length;
+            if (config.MEMPOOL.BACKEND === 'esplora') {
+              this.missingTxCount += missing;
+            }
+            logger.debug(`Error finding ${missing} transactions in the mempool: `);
+          }
+
+          if (Date.now() - intervalTimer > Math.max(pollRate * 2, 5_000)) {
+            if (this.inSync) {
+              // Break and restart mempool loop if we spend too much time processing
+              // new transactions that may lead to falling behind on block height
+              logger.debug('Breaking mempool loop because the 5s time limit exceeded.');
+              break;
+            } else {
+              const progress = (currentMempoolSize + newTransactions.length) / transactions.length * 100;
+              logger.debug(`Mempool is synchronizing. Processed ${newTransactions.length}/${remainingTxids.length} txs (${Math.round(progress)}%)`);
+              if (Math.floor(progress) < 100) {
+                loadingIndicators.setProgress('mempool', progress);
+              }
+              intervalTimer = Date.now();
+            }
           }
         }
       }
-    }
 
-    // Reset esplora 404 counter and log a warning if needed
-    const elapsedTime = new Date().getTime() - this.timer;
-    if (elapsedTime > this.SAMPLE_TIME) {
-      logEsplora404(this.missingTxCount, this.ESPLORA_MISSING_TX_WARNING_THRESHOLD, elapsedTime);
-      this.timer = new Date().getTime();
-      this.missingTxCount = 0;
-    }
+      // Reset esplora 404 counter and log a warning if needed
+      const elapsedTime = new Date().getTime() - this.timer;
+      if (elapsedTime > this.SAMPLE_TIME) {
+        logEsplora404(this.missingTxCount, this.ESPLORA_MISSING_TX_WARNING_THRESHOLD, elapsedTime);
+        this.timer = new Date().getTime();
+        this.missingTxCount = 0;
+      }
 
-    // Prevent mempool from clear on bitcoind restart by delaying the deletion
-    if (this.mempoolProtection === 0
-      && currentMempoolSize > 20000
-      && transactions.length / currentMempoolSize <= 0.80
-    ) {
-      this.mempoolProtection = 1;
-      this.inSync = false;
-      logger.warn(`Mempool clear protection triggered because transactions.length: ${transactions.length} and currentMempoolSize: ${currentMempoolSize}.`);
-      setTimeout(() => {
-        this.mempoolProtection = 2;
-        logger.warn('Mempool clear protection ended, normal operation resumed.');
-      }, 1000 * 60 * config.MEMPOOL.CLEAR_PROTECTION_MINUTES);
-    }
+      // Prevent mempool from clear on bitcoind restart by delaying the deletion
+      if (this.mempoolProtection === 0
+        && currentMempoolSize > 20000
+        && transactions.length / currentMempoolSize <= 0.80
+      ) {
+        this.mempoolProtection = 1;
+        this.inSync = false;
+        logger.warn(`Mempool clear protection triggered because transactions.length: ${transactions.length} and currentMempoolSize: ${currentMempoolSize}.`);
+        setTimeout(() => {
+          this.mempoolProtection = 2;
+          logger.warn('Mempool clear protection ended, normal operation resumed.');
+        }, 1000 * 60 * config.MEMPOOL.CLEAR_PROTECTION_MINUTES);
+      }
 
-    const deletedTransactions: MempoolTransactionExtended[] = [];
+      this.updateTimerProgress(timer, 'removing stale transactions');
+      const deletedTransactions: MempoolTransactionExtended[] = [];
 
-    if (this.mempoolProtection !== 1) {
-      this.mempoolProtection = 0;
-      // Index object for faster search
-      const transactionsObject = {};
-      transactions.forEach((txId) => transactionsObject[txId] = true);
+      if (this.mempoolProtection !== 1) {
+        this.mempoolProtection = 0;
+        // Index object for faster search
+        const transactionsObject = {};
+        transactions.forEach((txId) => transactionsObject[txId] = true);
 
-      // Delete evicted transactions from mempool
-      for (const tx in this.mempoolCache) {
-        if (!transactionsObject[tx]) {
-          deletedTransactions.push(this.mempoolCache[tx]);
+        // Delete evicted transactions from mempool
+        for (const tx in this.mempoolCache) {
+          if (!transactionsObject[tx]) {
+            deletedTransactions.push(this.mempoolCache[tx]);
+          }
+        }
+        for (const tx of deletedTransactions) {
+          delete this.mempoolCache[tx.txid];
         }
       }
-      for (const tx of deletedTransactions) {
-        delete this.mempoolCache[tx.txid];
+
+      this.updateTimerProgress(timer, 'updating mempool candidates');
+      const candidates = await this.getNextCandidates(minFeeMempool, minFeeTip, deletedTransactions);
+
+      const newMempoolSize = currentMempoolSize + newTransactions.length - deletedTransactions.length;
+      const newTransactionsStripped = newTransactions.map((tx) => Common.stripTransaction(tx));
+      this.latestTransactions = newTransactionsStripped.concat(this.latestTransactions).slice(0, 6);
+
+      this.updateTimerProgress(timer, 'updating mempool accelerations');
+      const accelerationDelta = accelerations != null ? await this.updateAccelerations(accelerations) : [];
+      if (accelerationDelta.length) {
+        hasChange = true;
       }
+
+      if (config.MEMPOOL.CLUSTER_MEMPOOL && (newTransactions.length || deletedTransactions.length || accelerationDelta.length)) {
+        this.clusterMempool?.applyMempoolChange({
+          added: newTransactions,
+          removed: deletedTransactions.map(tx => tx.txid),
+          accelerations: this.getAccelerations(),
+        });
+      }
+
+      this.mempoolCacheDelta = Math.abs(transactions.length - newMempoolSize);
+
+      const candidatesChanged = candidates?.added?.length || candidates?.removed?.length;
+
+      this.recentlyDeleted.unshift(deletedTransactions);
+      this.recentlyDeleted.length = Math.min(this.recentlyDeleted.length, 10); // truncate to the last 10 mempool updates
+
+      this.updateTimerProgress(timer, 'running mempool callback');
+      if (this.mempoolChangedCallback && (hasChange || newTransactions.length || deletedTransactions.length)) {
+        this.mempoolChangedCallback(this.mempoolCache, newTransactions, this.recentlyDeleted, accelerationDelta);
+      }
+      if (this.$asyncMempoolChangedCallback && (hasChange || newTransactions.length || deletedTransactions.length || candidatesChanged)) {
+        this.updateTimerProgress(timer, 'running async mempool callback');
+        await this.$asyncMempoolChangedCallback(this.mempoolCache, newMempoolSize, newTransactions, this.recentlyDeleted, accelerationDelta, candidates);
+      }
+
+      this.updateTimerProgress(timer, 'finalizing mempool synchronization');
+      if (!this.inSync && transactions.length === newMempoolSize) {
+        this.inSync = true;
+        logger.notice('The mempool is now in sync!');
+        loadingIndicators.setProgress('mempool', 100);
+      }
+
+      // Update Redis cache
+      if (config.REDIS.ENABLED) {
+        this.updateTimerProgress(timer, 'updating Redis cache: flushing transactions');
+        await redisCache.$flushTransactions();
+        this.updateTimerProgress(timer, 'updating Redis cache: removing stale transactions');
+        await redisCache.$removeTransactions(deletedTransactions.map(tx => tx.txid));
+        this.updateTimerProgress(timer, 'updating Redis cache: updating RBF cache');
+        await rbfCache.updateCache();
+      }
+
+      this.updateTimerProgress(timer, 'finalizing mempool synchronization');
+      const end = new Date().getTime();
+      const time = end - start;
+      logger.debug(`Mempool updated in ${time / 1000} seconds. New size: ${Object.keys(this.mempoolCache).length} (${diff > 0 ? '+' + diff : diff})`);
+
+      const completed = `[MEMPOOL_SYNC] completed inSync=${this.inSync} remaining=${this.mempoolCacheDelta} duration=${time}ms`;
+      if (time >= SLOW_MEMPOOL_BATCH_THRESHOLD_MS) {
+        logger.warn(completed);
+      } else if (initialSync) {
+        logger.info(completed);
+      } else {
+        logger.debug(completed);
+      }
+    } finally {
+      this.clearTimer(timer);
     }
-
-    const candidates = await this.getNextCandidates(minFeeMempool, minFeeTip, deletedTransactions);
-
-    const newMempoolSize = currentMempoolSize + newTransactions.length - deletedTransactions.length;
-    const newTransactionsStripped = newTransactions.map((tx) => Common.stripTransaction(tx));
-    this.latestTransactions = newTransactionsStripped.concat(this.latestTransactions).slice(0, 6);
-
-    const accelerationDelta = accelerations != null ? await this.updateAccelerations(accelerations) : [];
-    if (accelerationDelta.length) {
-      hasChange = true;
-    }
-
-    if (config.MEMPOOL.CLUSTER_MEMPOOL && (newTransactions.length || deletedTransactions.length || accelerationDelta.length)) {
-      this.clusterMempool?.applyMempoolChange({
-        added: newTransactions,
-        removed: deletedTransactions.map(tx => tx.txid),
-        accelerations: this.getAccelerations(),
-      });
-    }
-
-    this.mempoolCacheDelta = Math.abs(transactions.length - newMempoolSize);
-
-    const candidatesChanged = candidates?.added?.length || candidates?.removed?.length;
-
-    this.recentlyDeleted.unshift(deletedTransactions);
-    this.recentlyDeleted.length = Math.min(this.recentlyDeleted.length, 10); // truncate to the last 10 mempool updates
-
-    if (this.mempoolChangedCallback && (hasChange || newTransactions.length || deletedTransactions.length)) {
-      this.mempoolChangedCallback(this.mempoolCache, newTransactions, this.recentlyDeleted, accelerationDelta);
-    }
-    if (this.$asyncMempoolChangedCallback && (hasChange || newTransactions.length || deletedTransactions.length || candidatesChanged)) {
-      this.updateTimerProgress(timer, 'running async mempool callback');
-      await this.$asyncMempoolChangedCallback(this.mempoolCache, newMempoolSize, newTransactions, this.recentlyDeleted, accelerationDelta, candidates);
-      this.updateTimerProgress(timer, 'completed async mempool callback');
-    }
-
-    if (!this.inSync && transactions.length === newMempoolSize) {
-      this.inSync = true;
-      logger.notice('The mempool is now in sync!');
-      loadingIndicators.setProgress('mempool', 100);
-    }
-
-    // Update Redis cache
-    if (config.REDIS.ENABLED) {
-      await redisCache.$flushTransactions();
-      await redisCache.$removeTransactions(deletedTransactions.map(tx => tx.txid));
-      await rbfCache.updateCache();
-    }
-
-    const end = new Date().getTime();
-    const time = end - start;
-    logger.debug(`Mempool updated in ${time / 1000} seconds. New size: ${Object.keys(this.mempoolCache).length} (${diff > 0 ? '+' + diff : diff})`);
-
-    this.clearTimer(timer);
   }
 
   public getAccelerations(): { [txid: string]: Acceleration } {
@@ -523,17 +582,30 @@ class Mempool {
   private startTimer() {
     const state: any = {
       start: Date.now(),
-      progress: 'begin $updateMempool',
+      stageStart: Date.now(),
+      progress: 'initializing mempool synchronization',
       timer: null,
     };
     state.timer = setTimeout(() => {
-      logger.err(`$updateMempool stalled at "${state.progress}"`);
+      logger.warn(`$updateMempool stalled at "${state.progress}" duration=${Date.now() - state.start}ms`);
     }, this.mainLoopTimeout);
     return state;
   }
 
   private updateTimerProgress(state, msg) {
+    if (state.progress === msg) {
+      return;
+    }
+    const now = Date.now();
+    const duration = now - state.stageStart;
+    const message = `[MEMPOOL_SYNC] stage="${state.progress}" duration=${duration}ms elapsed=${now - state.start}ms next="${msg}"`;
+    if (duration >= SLOW_MEMPOOL_BATCH_THRESHOLD_MS) {
+      logger.warn(message);
+    } else {
+      logger.debug(message);
+    }
     state.progress = msg;
+    state.stageStart = now;
   }
 
   private clearTimer(state) {

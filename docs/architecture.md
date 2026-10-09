@@ -11,3 +11,13 @@
 界面每分钟查询一次，销毁时停止计时和请求。ECharts 两个散点系列在本地世界底图显示节点；原始客户端字符串作为文本呈现，不插入 HTML。分类保留 `0` 与 `null` 的差别，不从入站证据推断端口公开性。
 
 `StateService.env.PURITY_NODES_MAP_ENABLED` 默认 `true`。首页模板同时检查主网和该开关；关闭时不实例化地图组件，因此不会打开节点刷新订阅。开关沿用 `mempool-frontend-config.json` → `window.__env` 的配置流程；Docker 入口脚本提供同名环境变量默认值并导出模板占位符。后端无需增加开关。
+
+## REQ-003：同步缓存、计时与 watchdog
+
+`BitcoinApi.rawMempoolCachePromise` 持有完整初始化链：RPC → 写入 `rawMempoolCache` → 记录耗时 → finally 清理在途引用。全部调用者 await 该链，失败不会留下拒绝 Promise，也不创建脱离调用者的清理链。Electrum 继承此逻辑；不同 API 实例各有缓存。缓存快照生命周期和手续费回退不变。
+
+原始 `getrawtransaction` RPC 使用 finally 单独测量，包含成功／失败两条路径，耗时达到 5 秒时警告。该计时不含后续交易转换或手续费元数据查询。TransactionUtils 在进入并发限制器后计时完整抓取，仍使用并发 8 和 allSettled：成功结果顺序及失败过滤不变；汇总 slow、max_fetch、整体耗时、ETIMEDOUT、ESOCKETTIMEDOUT、RPC -5 和其他错误数。max_fetch 包含转换／手续费等待，不含排队，批次总耗时包含排队。
+
+Mempool 按同一输入快照计算缺失／过期数量；初始 info、稳定周期 debug、慢批次或失败 warn。批次调用前记录开始，调用后记录结果或中止；watchdog 在调用前设置实际阶段，阶段切换记录上一阶段耗时和累计耗时。逐笔 Redis 添加使用同一阶段，不逐笔输出阶段日志。刷新 Redis、删除过期 Redis 交易和更新 RBF 缓存各有阶段。最外层 try/finally 仅负责清理 watchdog，原状态更新、缓存、回调和异常传播顺序保留。
+
+入口仍在恢复磁盘／Redis 缓存后启动串行主循环；`getrawmempool()`、区块更新发生在 `$updateMempool()` 之外，其时间不计入此方法的 watchdog。磁盘缓存的“Loaded”日志原本只计文件读取／解析，后面的 `$setMempool()`、回调和 RBF 恢复不在该计时中。本次不修改恢复流程。
