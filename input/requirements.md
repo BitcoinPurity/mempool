@@ -18,7 +18,16 @@
 - 设置为 `false` 时不创建地图组件，不请求节点列表或启动其刷新计时器；保持原 Ocean／Knots 卡片移除后的布局。
 - 普通前端配置文件及 Docker 前端环境变量均支持此开关。该开关只控制页面展示，后端 API 契约不变。
 
-## REQ-003：节点标记层级与 Archive / Prune 类型
+## REQ-003：后端冷启动增量同步诊断与修复
+
+- 同一 BitcoinApi 实例的冷启动 verbose mempool 元数据初始化共享一个在途 Promise；成功保留缓存，失败清理并允许后续重试，手续费计算不变。
+- 每轮记录 Core／本地缓存／缺失／过期交易数量和同步状态；记录批次开始、成功／失败数量及耗时。初始同步用 info，常规进度用 debug，慢操作用 warn。
+- 逐笔抓取保持并发 8，统计成功、失败、慢请求、超时和最大／整体耗时；RPC 慢请求阈值 5 秒。失败仍按原规则过滤，在后续周期重新抓取。
+- watchdog 保持 120 秒，在所有退出路径清理，阶段对应实际等待的抓取、候选集、回调及 Redis 操作。
+- 保留磁盘缓存、RBF、Redis、Electrum、Esplora 和 Purity 行为；不改共识、数据库、公开 API、RPC 认证／超时或并发。只评估连接复用，不在本任务修改传输层。
+- 测试先行，执行编译、相关测试和 lint；提供诊断示例及 Ubuntu 部署／回滚步骤。未经批准不推送、部署或重启生产服务。
+
+## REQ-004：节点标记层级与 Archive / Prune 类型
 
 - 标记重叠时，可访问节点（`p2p_reachable=1`）始终绘制在非公开／未确认节点上方；保留同坐标节点展开和分类筛选。
 - 根据 Seeder 的 `services` 区分 Archive 与 Prune：含 `NODE_NETWORK`（bit 0）为 Archive；不含该位但含 `NODE_NETWORK_LIMITED`（bit 10）为 Prune。两位同时存在时为 Archive。
