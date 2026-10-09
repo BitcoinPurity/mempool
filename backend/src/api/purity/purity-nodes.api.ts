@@ -9,6 +9,7 @@ export interface PurityNode {
   port: number;
   status: 'purity';
   p2p_reachable: 0 | 1 | null;
+  node_type: 'archive' | 'prune' | 'unknown';
   user_agent: string;
   height: number;
   last_seen: number;
@@ -143,7 +144,10 @@ export class PurityNodesApi {
           longitude, latitude, city: city?.city?.names?.en ?? null,
           country: city?.country?.names?.en ?? null, country_code: city?.country?.iso_code ?? null,
         } : null;
-      nodes.push({ host: node.host, port: node.port, status: 'purity', p2p_reachable: node.p2p_reachable,
+      const services = Number.isSafeInteger(node.services) && node.services >= 0 ? node.services : 0;
+      // NODE_NETWORK takes precedence when NODE_NETWORK_LIMITED is also advertised (BIP159).
+      const nodeType = services & 1 ? 'archive' : services & 1024 ? 'prune' : 'unknown';
+      nodes.push({ host: node.host, port: node.port, status: 'purity', p2p_reachable: node.p2p_reachable, node_type: nodeType,
         user_agent: node.user_agent, height: node.height, last_seen: node.last_seen,
         last_success: node.last_success, last_p2p_success: node.last_p2p_success, location });
     }

@@ -1,5 +1,6 @@
 const node = {
   host: '8.8.8.8', port: 8333, status: 'purity', p2p_reachable: 1,
+  node_type: 'archive',
   user_agent: '/Purity:1.0.0/', height: 962000,
   last_seen: 1700000000, last_success: 1700000000, last_p2p_success: 1700000000,
   location: { longitude: -74, latitude: 40.7, city: 'New York', country: 'United States', country_code: 'US' },
@@ -37,7 +38,7 @@ describe('Purity node world map on the homepage', () => {
     cy.get('[data-cy=purity-unlocated]').should('contain', '1');
     cy.get('[data-cy=purity-chart] svg').should('exist');
     cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').should('have.length', 1);
-    cy.get('[data-cy=purity-chart] svg path[stroke="#f2b75a"]').should('have.length', 1);
+    cy.get('[data-cy=purity-chart] svg path[stroke="#37c89b"]').should('have.length', 1);
     cy.get('[data-cy=purity-nodes]').should('contain', 'Seeder');
     cy.get('[data-cy=purity-nodes]').then($card => {
       expect($card[0].getBoundingClientRect().width).to.be.greaterThan(800);
@@ -77,7 +78,7 @@ describe('Purity node world map on the homepage', () => {
     cy.get('.node-detail').should('contain', '8.8.8.8:8333').and('contain', '/Purity:1.0.0/');
     cy.get('[data-cy=purity-public]').click().should('have.attr', 'aria-pressed', 'false');
     cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').should('not.exist');
-    cy.get('[data-cy=purity-chart] svg path[stroke="#f2b75a"]').should('have.length', 1);
+    cy.get('[data-cy=purity-chart] svg path[stroke="#37c89b"]').should('have.length', 1);
   });
 
   it('refreshes the inventory every 60 seconds', () => {
@@ -89,6 +90,51 @@ describe('Purity node world map on the homepage', () => {
     cy.tick(60000);
     cy.wait('@periodic');
     cy.get('[data-cy=purity-total]').should('contain', '1');
+  });
+
+  it('draws reachable nodes above overlapping unreachable nodes', () => {
+    cy.intercept('GET', '**/api/v1/purity/nodes', { ...snapshot, nodes: [node,
+      { ...node, host: '1.1.1.1', p2p_reachable: 0,
+        location: { ...node.location, longitude: -74.001, latitude: 40.701 } },
+    ] }).as('overlappingNodes');
+    cy.visit('/');
+    cy.wait('@overlappingNodes');
+    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"], ' +
+      '[data-cy=purity-chart] svg path[stroke="#37c89b"]')
+      .should('have.length', 2).last().should('have.attr', 'fill', '#37c89b');
+    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').click({ scrollBehavior: 'center' });
+    cy.get('.node-detail').should('contain', '8.8.8.8:8333');
+  });
+
+  it('distinguishes Archive, Prune and unknown types independently of reachability', () => {
+    cy.intercept('GET', '**/api/v1/purity/nodes', { ...snapshot, nodes: [node,
+      { ...snapshot.nodes[1], p2p_reachable: 1, node_type: 'prune' },
+      { ...node, port: 8334, p2p_reachable: 0, location: { ...node.location, longitude: 0, latitude: 0 } },
+      { ...node, port: 8335, p2p_reachable: null, node_type: 'prune',
+        location: { ...node.location, longitude: -40, latitude: -30 } },
+      { ...node, host: '9.9.9.9', node_type: 'unknown',
+        location: { ...node.location, longitude: 50, latitude: 10 } },
+      { ...node, host: '4.2.2.2', node_type: undefined,
+        location: { ...node.location, longitude: 60, latitude: 20 } },
+    ] }).as('typedNodes');
+    cy.visit('/');
+    cy.wait('@typedNodes');
+    cy.get('[data-cy=purity-type-legend]').should('contain', 'Archive').and('contain', 'Prune').and('contain', 'Type unknown');
+    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').should('have.length', 1);
+    cy.get('[data-cy=purity-chart] svg path[fill="#5b9cf5"]').should('have.length', 1);
+    cy.get('[data-cy=purity-chart] svg path[fill="#a1a7b3"]').should('have.length', 2);
+    cy.get('[data-cy=purity-chart] svg path[stroke="#37c89b"]').should('have.length', 1);
+    cy.get('[data-cy=purity-chart] svg path[stroke="#5b9cf5"]').should('have.length', 1);
+    cy.get('[data-cy=purity-chart] svg path[fill="#5b9cf5"]').click({ scrollBehavior: 'center' });
+    cy.get('.node-detail').should('contain', '1.1.1.1:8333').and('contain', 'Prune');
+    cy.get('[data-cy=purity-node-list-toggle]').click();
+    cy.get('[data-cy=purity-node-list]').should('contain', 'Archive').and('contain', 'Prune').and('contain', 'Type unknown');
+    cy.get('[data-cy=purity-public]').should('contain', '4').click();
+    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"], ' +
+      '[data-cy=purity-chart] svg path[fill="#5b9cf5"], ' +
+      '[data-cy=purity-chart] svg path[fill="#a1a7b3"]').should('not.exist');
+    cy.get('[data-cy=purity-chart] svg path[stroke="#37c89b"], ' +
+      '[data-cy=purity-chart] svg path[stroke="#5b9cf5"]').should('have.length', 2);
   });
 
   for (const viewport of [[1280, 720], [390, 844]]) {
@@ -103,10 +149,13 @@ describe('Purity node world map on the homepage', () => {
       cy.visit('/');
       cy.wait('@colocatedNodes');
       const markers = '[data-cy=purity-chart] svg path[fill="#37c89b"], ' +
-        '[data-cy=purity-chart] svg path[stroke="#f2b75a"]';
+        '[data-cy=purity-chart] svg path[stroke="#37c89b"]';
       let center: { x: number; y: number };
-      cy.get(markers).should('have.length', 4).should($markers => {
-        const positions = [...$markers].slice(0, 3).map(marker => marker.getBoundingClientRect());
+      const selectedEndpoints: string[] = [];
+      cy.get(markers).should('have.length', 4).then($markers =>
+        [...$markers].sort((a, b) => a.getBoundingClientRect().x - b.getBoundingClientRect().x).slice(0, 3),
+      ).should($markers => {
+        const positions = [...$markers].map(marker => marker.getBoundingClientRect());
         for (let i = 0; i < positions.length; i++) {
           for (let j = i + 1; j < positions.length; j++) {
             expect(Math.hypot(positions[i].x - positions[j].x, positions[i].y - positions[j].y))
@@ -115,19 +164,17 @@ describe('Purity node world map on the homepage', () => {
         }
       }).then($markers => {
         const map = $markers[0].closest('svg').getBoundingClientRect();
-        const positions = [...$markers].slice(0, 3).map(marker => marker.getBoundingClientRect());
+        const positions = [...$markers].map(marker => marker.getBoundingClientRect());
         center = {
           x: positions.reduce((sum, rect) => sum + rect.x + rect.width / 2, 0) / 3 - map.x,
           y: positions.reduce((sum, rect) => sum + rect.y + rect.height / 2, 0) / 3 - map.y,
         };
-      });
-      const endpoints = ['8.8.8.8:8333', '8.8.8.8:8334', '1.1.1.1:8333'];
-      cy.get(markers).each(($marker, index) => {
-        if (index >= endpoints.length) { return; }
+        return $markers;
+      }).each($marker => {
         cy.get('[data-cy=purity-chart] svg').trigger('mouseout');
         cy.wrap($marker).click({ scrollBehavior: 'center' });
-        cy.get('.node-detail').should('contain', endpoints[index]);
-      });
+        cy.get('.node-detail strong').invoke('text').then(endpoint => selectedEndpoints.push(endpoint));
+      }).then(() => expect(selectedEndpoints.sort()).to.deep.equal(['1.1.1.1:8333', '8.8.8.8:8333', '8.8.8.8:8334']));
       cy.get('[data-cy=purity-total]').should('contain', '5');
       cy.get('[data-cy=purity-unlocated]').should('contain', '1');
       cy.get('[data-cy=purity-public]').click();
@@ -147,7 +194,7 @@ describe('Purity node world map on the homepage', () => {
       cy.get(markers).each(($marker, index) => {
         cy.get('[data-cy=purity-chart] svg').trigger('mouseout');
         cy.wrap($marker).click({ scrollBehavior: 'center' });
-        cy.get('.node-detail').should('contain', endpoints[index]);
+        cy.get('.node-detail').should('contain', '8.8.8.8:' + (8333 + index));
       });
     });
   }

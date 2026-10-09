@@ -10611,6 +10611,18 @@
       <trans-unit id="purity.nodes.public" datatype="html">
         <source>Public P2P</source>
       </trans-unit>
+      <trans-unit id="purity.nodes.archive" datatype="html">
+        <source>Archive</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.prune" datatype="html">
+        <source>Prune</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.unknown-type" datatype="html">
+        <source>Type unknown</source>
+      </trans-unit>
+      <trans-unit id="purity.nodes.type" datatype="html">
+        <source>Node type</source>
+      </trans-unit>
       <trans-unit id="purity.nodes.non-public" datatype="html">
         <source>Non-public / reachability unconfirmed</source>
       </trans-unit>

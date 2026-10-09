@@ -94,6 +94,21 @@ describe('Purity node inventory and public submissions', () => {
     expect(result.nodes[1].location).toEqual({ longitude: 0, latitude: 0, city: null, country: null, country_code: null });
   });
 
+  test.each([
+    [33554433, 'archive'], [33555456, 'prune'], [33555457, 'archive'],
+    [1, 'archive'], [1024, 'prune'], [1025, 'archive'],
+    [33554432, 'unknown'], [0, 'unknown'], [undefined, 'unknown'], [null, 'unknown'],
+    ['1024', 'unknown'], [-1, 'unknown'], [1.5, 'unknown'], [Number.MAX_SAFE_INTEGER + 1, 'unknown'],
+  ])('classifies services %s independently of reachability as %s', async (services, nodeType) => {
+    (axios.get as jest.Mock).mockResolvedValue({ data: [1, 0, null].map((p2p_reachable, index) => ({
+      ...upstreamNode, port: 8333 + index, p2p_reachable, services,
+    })) });
+    const res = await request('GET');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.nodes.map(node => node.node_type)).toEqual([nodeType, nodeType, nodeType]);
+    expect(res.body.nodes.map(node => node.p2p_reachable)).toEqual([1, 0, null]);
+  });
+
   test('shares simultaneous reads and expires the snapshot after 60 seconds', async () => {
     await Promise.all([api.getNodes(), api.getNodes(), api.getNodes()]);
     expect(axios.get).toHaveBeenCalledTimes(1);

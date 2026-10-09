@@ -24,6 +24,11 @@
           [class.muted]="!nonPublicVisible" (click)="toggleCategory(false)"><span class="non-public-marker" aria-hidden="true"></span>{{ nonPublicLabel }}: <strong>{{ nonPublicCount }}</strong></button>
         <span data-cy="purity-unlocated"><span i18n="@@purity.nodes.unlocated">Location unavailable</span>: {{ unlocatedCount }}</span>
       </div>
+      <div class="type-legend" data-cy="purity-type-legend">
+        <span><span class="type-marker" [style.background]="nodeTypeColors.archive" aria-hidden="true"></span>{{ archiveLabel }}</span>
+        <span><span class="type-marker" [style.background]="nodeTypeColors.prune" aria-hidden="true"></span>{{ pruneLabel }}</span>
+        <span><span class="type-marker" [style.background]="nodeTypeColors.unknown" aria-hidden="true"></span>{{ unknownTypeLabel }}</span>
+      </div>
       <div *ngIf="snapshot.nodes.length === 0" class="text-muted text-center my-3" i18n="@@purity.nodes.empty">No confirmed Purity nodes to display yet.</div>
       <div class="world-map" data-cy="purity-chart" *browserOnly echarts [initOpts]="chartInitOptions" [options]="chartOptions" (chartInit)="onChartInit($event)"></div>
       <div class="map-caption text-muted">
@@ -33,7 +38,7 @@
       <p class="map-caption text-muted mt-1" i18n="@@purity.nodes.observation">P2P status reflects this Seeder's observations. A failed or missing probe does not prove that the port is permanently closed.</p>
 
       <div *ngIf="selectedNode" class="node-detail" aria-live="polite">
-        <strong>{{ endpoint(selectedNode) }}</strong> · {{ location(selectedNode) }} · {{ probeStatus(selectedNode) }}
+        <strong>{{ endpoint(selectedNode) }}</strong> · {{ location(selectedNode) }} · {{ nodeTypeLabel(selectedNode) }} · {{ probeStatus(selectedNode) }}
         <div>{{ selectedNode.user_agent }} · <span i18n="@@purity.nodes.height">Height</span>: {{ selectedNode.height }}</div>
         <div><span i18n="@@purity.nodes.verified-at">Last chain verification</span>: {{ selectedNode.last_success ? (selectedNode.last_success * 1000 | date:'medium') : '—' }}</div>
       </div>
@@ -41,8 +46,8 @@
         aria-controls="purity-node-list" (click)="showList = !showList" i18n="@@purity.nodes.details">Node details</button>
       <div *ngIf="showList" id="purity-node-list" class="table-responsive" data-cy="purity-node-list">
         <table class="table table-sm mb-0">
-          <thead><tr><th i18n="@@purity.nodes.endpoint">Node address</th><th i18n="@@purity.nodes.position">Location</th><th i18n="@@purity.nodes.probe">P2P observation</th><th i18n="@@purity.nodes.height">Height</th></tr></thead>
-          <tbody><tr *ngFor="let node of snapshot.nodes"><td>{{ endpoint(node) }}</td><td>{{ location(node) }}</td><td>{{ probeStatus(node) }}</td><td>{{ node.height }}</td></tr></tbody>
+          <thead><tr><th i18n="@@purity.nodes.endpoint">Node address</th><th i18n="@@purity.nodes.position">Location</th><th i18n="@@purity.nodes.type">Node type</th><th i18n="@@purity.nodes.probe">P2P observation</th><th i18n="@@purity.nodes.height">Height</th></tr></thead>
+          <tbody><tr *ngFor="let node of snapshot.nodes"><td>{{ endpoint(node) }}</td><td>{{ location(node) }}</td><td>{{ nodeTypeLabel(node) }}</td><td>{{ probeStatus(node) }}</td><td>{{ node.height }}</td></tr></tbody>
         </table>
       </div>
     </ng-container>

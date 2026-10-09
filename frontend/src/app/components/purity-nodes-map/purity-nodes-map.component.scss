@@ -8,9 +8,12 @@
 .category { background: none; border: 0; padding: 0; color: inherit; display: inline-flex; align-items: center; gap: .35rem; }
 .category.muted { opacity: .45; }
 .category:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
-.public-marker, .non-public-marker { width: .6rem; height: .6rem; display: inline-block; flex-shrink: 0; }
-.public-marker { border-radius: 50%; background: #37c89b; }
-.non-public-marker { border: 2px solid #f2b75a; transform: rotate(45deg); margin-right: .2rem; }
+.public-marker, .non-public-marker, .type-marker { width: .6rem; height: .6rem; display: inline-block; flex-shrink: 0; }
+.public-marker, .type-marker { border-radius: 50%; }
+.public-marker { background: #a1a7b3; }
+.non-public-marker { border: 2px solid #a1a7b3; transform: rotate(45deg); margin-right: .2rem; }
+.type-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: .5rem; font-size: .875rem; }
+.type-legend > span { display: inline-flex; align-items: center; gap: .35rem; }
 .map-caption { font-size: .8rem; }
 .node-detail, .node-form { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--border-color, #333); }
 .node-detail, td { overflow-wrap: anywhere; }

@@ -17,3 +17,11 @@
 - 添加前端布尔配置 `PURITY_NODES_MAP_ENABLED`，默认 `true`，控制主网首页整张地图卡片（含添加节点入口）的显示。
 - 设置为 `false` 时不创建地图组件，不请求节点列表或启动其刷新计时器；保持原 Ocean／Knots 卡片移除后的布局。
 - 普通前端配置文件及 Docker 前端环境变量均支持此开关。该开关只控制页面展示，后端 API 契约不变。
+
+## REQ-003：节点标记层级与 Archive / Prune 类型
+
+- 标记重叠时，可访问节点（`p2p_reachable=1`）始终绘制在非公开／未确认节点上方；保留同坐标节点展开和分类筛选。
+- 根据 Seeder 的 `services` 区分 Archive 与 Prune：含 `NODE_NETWORK`（bit 0）为 Archive；不含该位但含 `NODE_NETWORK_LIMITED`（bit 10）为 Prune。两位同时存在时为 Archive。
+- 缺少有效服务标志或两个标志均未声明时显示类型未知，不依据高度、客户端字符串或可访问性猜测类型。
+- Archive 使用绿色，Prune 使用蓝色，类型未知使用灰色；实心圆表示可访问，空心菱形表示非公开／未确认。图例、悬浮提示和节点详情明确类型。
+- 仅修改本项目，通过现有 Seeder 库存读取类型信息；不修改 Seeder，不包含部署。
