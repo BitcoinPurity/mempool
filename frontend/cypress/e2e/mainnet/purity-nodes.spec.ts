@@ -91,6 +91,67 @@ describe('Purity node world map on the homepage', () => {
     cy.get('[data-cy=purity-total]').should('contain', '1');
   });
 
+  for (const viewport of [[1280, 720], [390, 844]]) {
+    it(`keeps colocated nodes separately visible and clickable at ${viewport[0]}px`, () => {
+      cy.viewport(viewport[0], viewport[1]);
+      cy.intercept('GET', '**/api/v1/purity/nodes', { ...snapshot, nodes: [
+        node, { ...node, port: 8334 },
+        { ...node, host: '1.1.1.1', p2p_reachable: 0 },
+        { ...snapshot.nodes[1], host: '9.9.9.9' },
+        snapshot.nodes[2],
+      ] }).as('colocatedNodes');
+      cy.visit('/');
+      cy.wait('@colocatedNodes');
+      const markers = '[data-cy=purity-chart] svg path[fill="#37c89b"], ' +
+        '[data-cy=purity-chart] svg path[stroke="#f2b75a"]';
+      let center: { x: number; y: number };
+      cy.get(markers).should('have.length', 4).should($markers => {
+        const positions = [...$markers].slice(0, 3).map(marker => marker.getBoundingClientRect());
+        for (let i = 0; i < positions.length; i++) {
+          for (let j = i + 1; j < positions.length; j++) {
+            expect(Math.hypot(positions[i].x - positions[j].x, positions[i].y - positions[j].y))
+              .to.be.greaterThan(12);
+          }
+        }
+      }).then($markers => {
+        const map = $markers[0].closest('svg').getBoundingClientRect();
+        const positions = [...$markers].slice(0, 3).map(marker => marker.getBoundingClientRect());
+        center = {
+          x: positions.reduce((sum, rect) => sum + rect.x + rect.width / 2, 0) / 3 - map.x,
+          y: positions.reduce((sum, rect) => sum + rect.y + rect.height / 2, 0) / 3 - map.y,
+        };
+      });
+      const endpoints = ['8.8.8.8:8333', '8.8.8.8:8334', '1.1.1.1:8333'];
+      cy.get(markers).each(($marker, index) => {
+        if (index >= endpoints.length) { return; }
+        cy.get('[data-cy=purity-chart] svg').trigger('mouseout');
+        cy.wrap($marker).click({ scrollBehavior: 'center' });
+        cy.get('.node-detail').should('contain', endpoints[index]);
+      });
+      cy.get('[data-cy=purity-total]').should('contain', '5');
+      cy.get('[data-cy=purity-unlocated]').should('contain', '1');
+      cy.get('[data-cy=purity-public]').click();
+      cy.get(markers).should('have.length', 2).first().should($marker => {
+        const map = $marker[0].closest('svg').getBoundingClientRect();
+        const rect = $marker[0].getBoundingClientRect();
+        expect(rect.x + rect.width / 2 - map.x).to.be.closeTo(center.x, 1);
+        expect(rect.y + rect.height / 2 - map.y).to.be.closeTo(center.y, 1);
+      });
+      cy.get('[data-cy=purity-public]').click();
+      cy.get('[data-cy=purity-non-public]').click();
+      cy.get(markers).should('have.length', 2).should($markers => {
+        const first = $markers[0].getBoundingClientRect();
+        const second = $markers[1].getBoundingClientRect();
+        expect(Math.hypot(first.x - second.x, first.y - second.y)).to.be.greaterThan(12);
+      });
+      cy.get(markers).each(($marker, index) => {
+        cy.get('[data-cy=purity-chart] svg').trigger('mouseout');
+        cy.wrap($marker).click({ scrollBehavior: 'center' });
+        cy.get('.node-detail').should('contain', endpoints[index]);
+      });
+    });
+  }
+
   it('rejects a hostname in the form and submits an IPv6 address', () => {
     cy.intercept('POST', '**/api/v1/purity/nodes', { body: {
       host: '2001:4860:4860::8888', port: 8333, added: true, verification: 'purity', status: 'purity',

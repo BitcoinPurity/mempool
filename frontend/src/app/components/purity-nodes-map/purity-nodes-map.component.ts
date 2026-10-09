@@ -11,6 +11,7 @@ interface PurityMapPoint {
   name: string;
   value: number[];
   node: PurityNode;
+  symbolOffset: number[];
 }
 
 @Component({
@@ -168,6 +169,25 @@ export class PurityNodesMapComponent implements OnInit, OnDestroy {
 
   private updateChart(): void {
     const geo = (this.chartInstance?.getOption()?.geo as { center?: number[]; zoom?: number }[])?.[0];
+    const groups = new Map<string, PurityMapPoint[]>();
+    for (const node of this.snapshot?.nodes ?? []) {
+      if (!node.location || !(node.p2p_reachable === 1 ? this.publicVisible : this.nonPublicVisible)) { continue; }
+      const value = [node.location.longitude, node.location.latitude];
+      const key = value.join(',');
+      const group = groups.get(key) ?? [];
+      group.push({ name: this.endpoint(node), value, node, symbolOffset: [0, 0] });
+      groups.set(key, group);
+    }
+    for (const group of groups.values()) {
+      if (group.length < 2) { continue; }
+      // Offset overlapping symbols in pixels, preserving their GeoIP coordinates at every zoom level.
+      const radius = Math.max(10, group.length * 3);
+      group.forEach((point, index) => {
+        const angle = 2 * Math.PI * index / group.length;
+        point.symbolOffset = [Math.cos(angle) * radius, Math.sin(angle) * radius];
+      });
+    }
+    const points = Array.from(groups.values()).flat();
     this.chartOptions = {
       animation: false,
       tooltip: {
@@ -193,10 +213,7 @@ export class PurityNodesMapComponent implements OnInit, OnDestroy {
         type: 'scatter', coordinateSystem: 'geo',
         symbol: isPublic ? 'circle' : 'emptyDiamond', symbolSize: 10,
         itemStyle: { color: isPublic ? '#37c89b' : '#f2b75a' },
-        data: this.snapshot?.nodes.filter(node => node.location && (node.p2p_reachable === 1) === isPublic &&
-          (isPublic ? this.publicVisible : this.nonPublicVisible)).map(node => ({
-            name: this.endpoint(node), value: [node.location!.longitude, node.location!.latitude], node,
-          })) ?? [],
+        data: points.filter(point => (point.node.p2p_reachable === 1) === isPublic),
       })),
     };
   }
