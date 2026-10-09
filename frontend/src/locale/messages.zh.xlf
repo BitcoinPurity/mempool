@@ -11498,22 +11498,6 @@
         <source>Public P2P</source>
         <target>公开 P2P</target>
       </trans-unit>
-      <trans-unit id="purity.nodes.archive" datatype="html">
-        <source>Archive</source>
-        <target>Archive</target>
-      </trans-unit>
-      <trans-unit id="purity.nodes.prune" datatype="html">
-        <source>Prune</source>
-        <target>Prune</target>
-      </trans-unit>
-      <trans-unit id="purity.nodes.unknown-type" datatype="html">
-        <source>Type unknown</source>
-        <target>类型未知</target>
-      </trans-unit>
-      <trans-unit id="purity.nodes.type" datatype="html">
-        <source>Node type</source>
-        <target>节点类型</target>
-      </trans-unit>
       <trans-unit id="purity.nodes.non-public" datatype="html">
         <source>Non-public / reachability unconfirmed</source>
         <target>非公开／未确认可达</target>

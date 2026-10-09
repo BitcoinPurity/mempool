@@ -10,7 +10,7 @@
 
 界面每分钟查询一次，销毁时停止计时和请求。ECharts 两个散点系列在本地世界底图显示节点；原始客户端字符串作为文本呈现，不插入 HTML。分类保留 `0` 与 `null` 的差别，不从入站证据推断端口公开性。
 
-REQ-004：后端从 Seeder 的 `services` 推导 `node_type`，优先检查 `NODE_NETWORK`（1），然后检查 `NODE_NETWORK_LIMITED`（1024）。服务标志缺失、不是非负安全整数或没有相关位时返回 `unknown`。前端按类型为每个散点设置颜色，按可访问状态设置实心圆／空心菱形及系列绘制层级，可访问系列始终在上层。同坐标的可见节点在像素空间展开，不改变 GeoIP 经纬度；筛选后只剩一个节点时将偏移显式重置为零。旧后端缺少 `node_type` 时，前端显示类型未知。
+REQ-004：后端从 Seeder 的 `services` 推导 `node_type`，优先检查 `NODE_NETWORK`（1），然后检查 `NODE_NETWORK_LIMITED`（1024）。服务标志缺失、不是非负安全整数或没有相关位时返回 `unknown`，此后端逻辑和响应契约不变。前端不消费 `node_type`，仅按可访问状态使用绿色实心圆／橙色空心菱形及系列绘制层级，可访问系列始终在上层。同坐标的可见节点在像素空间展开，不改变 GeoIP 经纬度；筛选后只剩一个节点时将偏移显式重置为零。
 
 `StateService.env.PURITY_NODES_MAP_ENABLED` 默认 `true`。首页模板同时检查主网和该开关；关闭时不实例化地图组件，因此不会打开节点刷新订阅。开关沿用 `mempool-frontend-config.json` → `window.__env` 的配置流程；Docker 入口脚本提供同名环境变量默认值并导出模板占位符。后端无需增加开关。
 

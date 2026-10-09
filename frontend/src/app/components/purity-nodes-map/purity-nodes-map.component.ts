@@ -12,7 +12,6 @@ interface PurityMapPoint {
   value: number[];
   node: PurityNode;
   symbolOffset: number[];
-  itemStyle: { color: string };
 }
 
 @Component({
@@ -42,10 +41,6 @@ export class PurityNodesMapComponent implements OnInit, OnDestroy {
   submissionError = false;
   publicLabel = $localize`:@@purity.nodes.public:Public P2P`;
   nonPublicLabel = $localize`:@@purity.nodes.non-public:Non-public / reachability unconfirmed`;
-  archiveLabel = $localize`:@@purity.nodes.archive:Archive`;
-  pruneLabel = $localize`:@@purity.nodes.prune:Prune`;
-  unknownTypeLabel = $localize`:@@purity.nodes.unknown-type:Type unknown`;
-  nodeTypeColors = { archive: '#37c89b', prune: '#5b9cf5', unknown: '#a1a7b3' };
   form = new FormGroup({
     host: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(
       /^(?:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)|(?=[0-9a-fA-F:.]*:)[0-9a-fA-F:.]{2,45})$/,
@@ -120,10 +115,6 @@ export class PurityNodesMapComponent implements OnInit, OnDestroy {
       $localize`:@@purity.nodes.unknown-location:Location unavailable`;
   }
 
-  nodeTypeLabel(node: PurityNode): string {
-    return node.node_type === 'archive' ? this.archiveLabel : node.node_type === 'prune' ? this.pruneLabel : this.unknownTypeLabel;
-  }
-
   onChartInit(chart: echarts.ECharts): void {
     this.chartInstance = chart;
     chart.on('click', (params: echarts.ECElementEvent) => {
@@ -184,8 +175,7 @@ export class PurityNodesMapComponent implements OnInit, OnDestroy {
       const value = [node.location.longitude, node.location.latitude];
       const key = value.join(',');
       const group = groups.get(key) ?? [];
-      group.push({ name: this.endpoint(node), value, node, symbolOffset: [0, 0],
-        itemStyle: { color: this.nodeTypeColors[node.node_type] ?? this.nodeTypeColors.unknown } });
+      group.push({ name: this.endpoint(node), value, node, symbolOffset: [0, 0] });
       groups.set(key, group);
     }
     for (const group of groups.values()) {
@@ -206,7 +196,7 @@ export class PurityNodesMapComponent implements OnInit, OnDestroy {
           const node = (params as { data: PurityMapPoint }).data.node;
           const verified = node.last_success ? new Date(node.last_success * 1000).toLocaleString(this.locale) :
             $localize`:@@purity.nodes.unknown-time:Unknown`;
-          return [this.endpoint(node), this.location(node), this.nodeTypeLabel(node), this.probeStatus(node), node.user_agent,
+          return [this.endpoint(node), this.location(node), this.probeStatus(node), node.user_agent,
             $localize`:@@purity.nodes.height:Height` + ': ' + node.height,
             $localize`:@@purity.nodes.verified-at:Last chain verification` + ': ' + verified].join('\n');
         },
@@ -223,6 +213,7 @@ export class PurityNodesMapComponent implements OnInit, OnDestroy {
         type: 'scatter', coordinateSystem: 'geo',
         z: isPublic ? 3 : 2,
         symbol: isPublic ? 'circle' : 'emptyDiamond', symbolSize: 10,
+        itemStyle: { color: isPublic ? '#37c89b' : '#f2b75a' },
         data: points.filter(point => (point.node.p2p_reachable === 1) === isPublic),
       })),
     };

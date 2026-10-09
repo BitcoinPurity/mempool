@@ -38,7 +38,7 @@ describe('Purity node world map on the homepage', () => {
     cy.get('[data-cy=purity-unlocated]').should('contain', '1');
     cy.get('[data-cy=purity-chart] svg').should('exist');
     cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').should('have.length', 1);
-    cy.get('[data-cy=purity-chart] svg path[stroke="#37c89b"]').should('have.length', 1);
+    cy.get('[data-cy=purity-chart] svg path[stroke="#f2b75a"]').should('have.length', 1);
     cy.get('[data-cy=purity-nodes]').should('contain', 'Seeder');
     cy.get('[data-cy=purity-nodes]').then($card => {
       expect($card[0].getBoundingClientRect().width).to.be.greaterThan(800);
@@ -78,7 +78,7 @@ describe('Purity node world map on the homepage', () => {
     cy.get('.node-detail').should('contain', '8.8.8.8:8333').and('contain', '/Purity:1.0.0/');
     cy.get('[data-cy=purity-public]').click().should('have.attr', 'aria-pressed', 'false');
     cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').should('not.exist');
-    cy.get('[data-cy=purity-chart] svg path[stroke="#37c89b"]').should('have.length', 1);
+    cy.get('[data-cy=purity-chart] svg path[stroke="#f2b75a"]').should('have.length', 1);
   });
 
   it('refreshes the inventory every 60 seconds', () => {
@@ -100,13 +100,13 @@ describe('Purity node world map on the homepage', () => {
     cy.visit('/');
     cy.wait('@overlappingNodes');
     cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"], ' +
-      '[data-cy=purity-chart] svg path[stroke="#37c89b"]')
+      '[data-cy=purity-chart] svg path[stroke="#f2b75a"]')
       .should('have.length', 2).last().should('have.attr', 'fill', '#37c89b');
     cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').click({ scrollBehavior: 'center' });
     cy.get('.node-detail').should('contain', '8.8.8.8:8333');
   });
 
-  it('distinguishes Archive, Prune and unknown types independently of reachability', () => {
+  it('uses reachability alone for styling and omits node types from the UI', () => {
     cy.intercept('GET', '**/api/v1/purity/nodes', { ...snapshot, nodes: [node,
       { ...snapshot.nodes[1], p2p_reachable: 1, node_type: 'prune' },
       { ...node, port: 8334, p2p_reachable: 0, location: { ...node.location, longitude: 0, latitude: 0 } },
@@ -119,22 +119,20 @@ describe('Purity node world map on the homepage', () => {
     ] }).as('typedNodes');
     cy.visit('/');
     cy.wait('@typedNodes');
-    cy.get('[data-cy=purity-type-legend]').should('contain', 'Archive').and('contain', 'Prune').and('contain', 'Type unknown');
-    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').should('have.length', 1);
-    cy.get('[data-cy=purity-chart] svg path[fill="#5b9cf5"]').should('have.length', 1);
-    cy.get('[data-cy=purity-chart] svg path[fill="#a1a7b3"]').should('have.length', 2);
-    cy.get('[data-cy=purity-chart] svg path[stroke="#37c89b"]').should('have.length', 1);
-    cy.get('[data-cy=purity-chart] svg path[stroke="#5b9cf5"]').should('have.length', 1);
-    cy.get('[data-cy=purity-chart] svg path[fill="#5b9cf5"]').click({ scrollBehavior: 'center' });
-    cy.get('.node-detail').should('contain', '1.1.1.1:8333').and('contain', 'Prune');
-    cy.get('[data-cy=purity-node-list-toggle]').click();
-    cy.get('[data-cy=purity-node-list]').should('contain', 'Archive').and('contain', 'Prune').and('contain', 'Type unknown');
-    cy.get('[data-cy=purity-public]').should('contain', '4').click();
-    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"], ' +
-      '[data-cy=purity-chart] svg path[fill="#5b9cf5"], ' +
+    cy.get('[data-cy=purity-type-legend]').should('not.exist');
+    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').should('have.length', 4);
+    cy.get('[data-cy=purity-chart] svg path[stroke="#f2b75a"]').should('have.length', 2);
+    cy.get('[data-cy=purity-chart] svg path[fill="#5b9cf5"], ' +
       '[data-cy=purity-chart] svg path[fill="#a1a7b3"]').should('not.exist');
-    cy.get('[data-cy=purity-chart] svg path[stroke="#37c89b"], ' +
-      '[data-cy=purity-chart] svg path[stroke="#5b9cf5"]').should('have.length', 2);
+    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').eq(1).click({ scrollBehavior: 'center' });
+    cy.get('.node-detail').should('contain', '1.1.1.1:8333');
+    cy.get('[data-cy=purity-node-list-toggle]').click();
+    cy.get('[data-cy=purity-node-list] thead th').should('have.length', 4);
+    cy.get('[data-cy=purity-nodes]').should('not.contain', 'Archive').and('not.contain', 'Prune')
+      .and('not.contain', 'Type unknown').and('not.contain', 'Node type');
+    cy.get('[data-cy=purity-public]').should('contain', '4').click();
+    cy.get('[data-cy=purity-chart] svg path[fill="#37c89b"]').should('not.exist');
+    cy.get('[data-cy=purity-chart] svg path[stroke="#f2b75a"]').should('have.length', 2);
   });
 
   for (const viewport of [[1280, 720], [390, 844]]) {
@@ -149,7 +147,7 @@ describe('Purity node world map on the homepage', () => {
       cy.visit('/');
       cy.wait('@colocatedNodes');
       const markers = '[data-cy=purity-chart] svg path[fill="#37c89b"], ' +
-        '[data-cy=purity-chart] svg path[stroke="#37c89b"]';
+        '[data-cy=purity-chart] svg path[stroke="#f2b75a"]';
       let center: { x: number; y: number };
       const selectedEndpoints: string[] = [];
       cy.get(markers).should('have.length', 4).then($markers =>

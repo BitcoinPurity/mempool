@@ -3,7 +3,6 @@ export interface PurityNode {
   port: number;
   status: 'purity';
   p2p_reachable: 0 | 1 | null;
-  node_type: 'archive' | 'prune' | 'unknown';
   user_agent: string;
   height: number;
   last_seen: number;

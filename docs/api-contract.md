@@ -10,6 +10,8 @@ REQ-002 的前端 `PURITY_NODES_MAP_ENABLED` 仅控制首页展示与组件请�
 
 REQ-004 新增 `node_type: "archive" | "prune" | "unknown"`，独立于 `p2p_reachable`。根据上游非负安全整数 `services`：有 bit 0（`NODE_NETWORK`）为 `archive`；无 bit 0 但有 bit 10（`NODE_NETWORK_LIMITED`）为 `prune`；否则为 `unknown`。缺失或无法精确读取时也为 `unknown`，不影响库存读取。两个标志同时存在时保留 `archive`，遵循 [BIP159](https://bips.dev/159/)。该字段表示节点声明的服务能力，不表示本项目验证过其磁盘保存范围。其他字段、缓存、认证和添加契约不变。
 
+前端取消节点类型展示后忽略 `node_type`，仅按 `p2p_reachable` 设置标记；后端继续返回该字段，上述 API 契约不变。
+
 ## `POST /api/v1/purity/nodes`
 
 请求 JSON `{ "host": "公网IP", "port": 8333 }`，省略 `port` 时为 8333。仅接受公网 IPv4／IPv6 字面地址，不解析域名；端口必须为 1–65535 的整数。成功返回上游的 `{ "host", "port", "added", "verification", "status" }`。
