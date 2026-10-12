@@ -78,7 +78,7 @@ describe('Purity node inventory and public submissions', () => {
     expect(res.body.nodes.map(n => n.p2p_reachable)).toEqual([1, 0, null]);
     expect(res.body.nodes[0].location).toEqual({ longitude: -74, latitude: 40.7,
       city: 'New York', country: 'United States', country_code: 'US' });
-    expect(axios.get).toHaveBeenCalledWith('https://seed.bitcoinpurity.org/api/listnodes', expect.objectContaining({
+    expect(axios.get).toHaveBeenCalledWith('https://seeder.bitcoinpurity.org/api/listnodes', expect.objectContaining({
       timeout: 15000, headers: { Authorization: 'Bearer test-only-token' }, maxRedirects: 0,
     }));
     expect(JSON.stringify(res.body)).not.toContain('test-only-token');
@@ -129,7 +129,7 @@ describe('Purity node inventory and public submissions', () => {
     const res = await request('POST', { host: '8.8.8.8' });
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ added: false, verification });
-    expect(axios.post).toHaveBeenCalledWith('https://seed.bitcoinpurity.org/api/addnode', { host: '8.8.8.8', port: 8333 },
+    expect(axios.post).toHaveBeenCalledWith('https://seeder.bitcoinpurity.org/api/addnode', { host: '8.8.8.8', port: 8333 },
       expect.objectContaining({ timeout: 60000, maxRedirects: 0 }));
     await api.getNodes();
     expect(axios.get).toHaveBeenCalledTimes(2);
@@ -154,7 +154,7 @@ describe('Purity node inventory and public submissions', () => {
     expect((await request('POST', { host, port: 8334 })).statusCode).toBe(200);
   });
 
-  test.each(['localhost', 'seed.bitcoinpurity.org', '127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.0.1',
+  test.each(['localhost', 'seeder.bitcoinpurity.org', '127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.0.1',
     '100.64.0.1', '169.254.169.254', '0.0.0.0', '224.0.0.1', '255.255.255.255', '192.0.2.1',
     '198.18.0.1', '198.51.100.1', '203.0.113.1', '::1', '::', 'fc00::1', 'fe80::1', 'ff02::1',
     '2001:db8::1', '3fff::1', '2002:7f00:1::1', '::ffff:127.0.0.1', '::ffff:7f00:1',

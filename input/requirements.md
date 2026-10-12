@@ -3,7 +3,7 @@
 ## REQ-001：Purity 节点世界地图与节点提交
 
 - 首页原 Ocean Mining Hashrate 和 Bitcoin Knots Nodes 两张卡片替换为一张整行 Purity 世界地图。
-- 从 `https://seed.bitcoinpurity.org/api/listnodes` 获取数据，仅展示 `status=purity` 的 IP＋端口记录。
+- 从 `https://seeder.bitcoinpurity.org/api/listnodes` 获取数据，仅展示 `status=purity` 的 IP＋端口记录。
 - 区分公开 P2P（`p2p_reachable=1`）与非公开／未确认可达（`0/null`）；明确探测失败、尚未探测和单个 Seeder 观察点的语义。
 - 通过本地 GeoLite2-City 定位 IP；不能定位的节点保留在统计中。
 - 任何访客可提交公网 IPv4／IPv6 和端口，通过后端调用 Seeder `/api/addnode`，默认端口 8333。

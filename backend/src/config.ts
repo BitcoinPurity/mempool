@@ -365,7 +365,7 @@ const defaults: IConfig = {
     'ASERT_ANCHOR_HEIGHT': 961632,
   },
   'PURITY_SEEDER': {
-    'API_URL': 'https://seed.bitcoinpurity.org',
+    'API_URL': 'https://seeder.bitcoinpurity.org',
     'TRUSTED_PROXIES': ['127.0.0.1/32', '::1/128'],
   }
 };

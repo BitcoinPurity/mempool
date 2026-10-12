@@ -21,3 +21,10 @@
 完整配置测试的 `should return defaults when no file is present` 和 `should override the default values with the passed values` 两项失败，涉及原有 `POOLS_OVERLAY_PATH`／`AUDIT_GBT` 期望缺失。使用 HEAD 的原始配置、测试和模板在临时目录复现了同样的两项失败；本任务不修改这些无关期望。生产构建另有原有组件样式预算警告。新增文案已提供英文和中文，其他语言回退英文，并产生缺少翻译的构建警告。
 
 上线仍需有效 `PURITY_SEEDER_API_TOKEN`、可读 GeoLite2-City 文件及实际代理 CIDR；使用认证的只读库存请求核对线上契约。未执行真实节点添加、部署、提交或推送；无数据库迁移。
+
+## 节点 API 域名更新（2026-10-12）
+
+- 默认上游地址改为 `https://seeder.bitcoinpurity.org`，同步后端配置、Docker 默认值、样例、测试夹具及文档；其余配置、接口路径和行为不变。
+- 先更新测试预期，确认旧域名导致 5 项失败；修改后节点 API 74 项及 Seeder／Docker 配置 3 项相关测试通过。
+- 后端 TypeScript 检查、Docker 启动脚本语法、样例和夹具 JSON 检查、`git diff --check` 通过；项目中已无旧 API 域名引用，前端及节点 API 实现无差异。
+- 仅使用模拟上游请求验证，未调用真实添加接口，未推送、未部署。

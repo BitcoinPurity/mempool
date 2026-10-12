@@ -2,7 +2,7 @@
 
 ## Purity 节点地图
 
-首页地图组件通过现有 ApiService 请求本项目后端。后端通过固定配置的 Seeder 地址和环境变量 `PURITY_SEEDER_API_TOKEN` 调用库存及添加 API；前端不接触 Token。节点库存不存入本项目数据库，使用 60 秒内存快照，并合并并发读取。添加完成（包括上游错误／超时）使快照失效；旧的在途查询不能覆盖新快照。
+首页地图组件通过现有 ApiService 请求本项目后端。后端通过固定配置的 Seeder 地址（默认 `https://seeder.bitcoinpurity.org`）和环境变量 `PURITY_SEEDER_API_TOKEN` 调用库存及添加 API；前端不接触 Token。节点库存不存入本项目数据库，使用 60 秒内存快照，并合并并发读取。添加完成（包括上游错误／超时）使快照失效；旧的在途查询不能覆盖新快照。
 
 位置由 `MAXMIND.GEOLITE2_CITY` 指定的本地文件提供，仅需 City 数据库，不依赖 Lightning、ASN 或数据库索引功能。文件读取器延迟打开并复用；缺失文件给出明确服务错误。某 IP 无位置时返回 `location: null`。
 
