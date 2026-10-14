@@ -3,7 +3,7 @@
 ## REQ-001：Purity 节点世界地图与节点提交
 
 - 首页原 Ocean Mining Hashrate 和 Bitcoin Knots Nodes 两张卡片替换为一张整行 Purity 世界地图。
-- 从 `https://seed.bitcoinpurity.org/api/listnodes` 获取数据，仅展示 `status=purity` 的 IP＋端口记录。
+- 从 `https://seeder.bitcoinpurity.org/api/listnodes` 获取数据，仅展示 `status=purity` 的 IP＋端口记录。
 - 区分公开 P2P（`p2p_reachable=1`）与非公开／未确认可达（`0/null`）；明确探测失败、尚未探测和单个 Seeder 观察点的语义。
 - 通过本地 GeoLite2-City 定位 IP；不能定位的节点保留在统计中。
 - 任何访客可提交公网 IPv4／IPv6 和端口，通过后端调用 Seeder `/api/addnode`，默认端口 8333。
@@ -36,7 +36,13 @@
 - 后端类型识别及 `node_type` 响应契约维持不变。
 - 仅修改本项目，通过现有 Seeder 库存读取类型信息；不修改 Seeder，不包含部署。
 
-## REQ-005：永久 RDTS 状态替换 BIP-110 部署追踪
+## REQ-005：RPC 完整响应超时与中断处理
+
+- 先用本地真实 HTTP 服务复现持续分块但不结束、响应体中途断开两种挂起场景，再最小修复本项目 JsonRPC 客户端。
+- 请求总超时覆盖响应头及完整响应体；响应中断或错误及时拒绝 Promise，所有完成路径清理总超时，超时关闭请求连接。
+- 保持现有超时配置及默认值、socket 空闲超时、认证、RPC 结果、连接策略和同步并发；不部署、不重启 VPS。
+
+## REQ-006：永久 RDTS 状态替换 BIP-110 部署追踪
 
 - 删除临时 BIP-110 的投票阈值、锁定、到期和逐周期历史扫描；状态计算同步、O(1)，只读取网络配置与内存高度，不访问 Core、Electrum 或数据库。
 - 按 Purity 权威规范核对主网永久 RDTS 激活高度；不复用 ASERT 配置或旧 BIP-110 激活高度。未确认的其他网络不声称永久执行。

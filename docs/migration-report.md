@@ -2,11 +2,11 @@
 
 首页移除 Ocean／Knots 卡片，添加整行 Purity 地图。新增两条本项目 API、配置及本地地理库读取，不需要数据库迁移或 Seeder 修改。
 
-部署准备：后端设置 `PURITY_SEEDER_API_TOKEN`；`PURITY_SEEDER.API_URL` 默认 `https://seed.bitcoinpurity.org`；代理来源通过 `PURITY_SEEDER.TRUSTED_PROXIES` 明确配置；默认信任 loopback。提供 `MAXMIND.GEOLITE2_CITY` 文件，Docker 部署通过只读卷挂载。API 不要求启用 Lightning 或 ASN 数据库。
+部署准备：后端设置 `PURITY_SEEDER_API_TOKEN`；`PURITY_SEEDER.API_URL` 默认 `https://seeder.bitcoinpurity.org`；代理来源通过 `PURITY_SEEDER.TRUSTED_PROXIES` 明确配置；默认信任 loopback。提供 `MAXMIND.GEOLITE2_CITY` 文件，Docker 部署通过只读卷挂载。API 不要求启用 Lightning 或 ASN 数据库。
 
 反向代理为节点 API 保持 `Cache-Control: no-store`，读取等待时间应大于后端 60 秒验证超时，并覆盖 `X-Real-IP`。前端开发代理也需为此接口延长超时。Token 不写入前端或仓库配置。
 
-目前未经认证的线上 `listnodes` 返回 401，接口依据 Seeder 本地源码与契约；上线前使用安全配置的 Token 做只读契约核对。真实添加会写入远程库存，不用于自动化测试。实现验证与实际部署分别记录。
+原实现验证时，未经认证的线上 `listnodes` 返回 401，接口依据 Seeder 本地源码与契约；上线前使用安全配置的 Token 做只读契约核对。真实添加会写入远程库存，不用于自动化测试。实现验证与实际部署分别记录。
 
 本地实现已完成：后端节点 API 60 项及配置／Docker 3 项相关测试通过，Cypress 12 项通过，后端编译及英文／多语言生产构建通过，已核对中文产物。完整配置测试存在两项经原始 HEAD 代码复现的既有失败；详见 [TASK-001](tasks/TASK-001.md)。新增入口沿用主网 API，不影响其他网络的首页。Nginx 与本地开发代理覆盖访客 IP 头，节点接口代理等待 70 秒。
 
@@ -36,7 +36,13 @@
 
 取消前端展示后，地图 Cypress 18 项、前端类型检查、相关 ESLint、开发和多语言生产构建通过，已核对中英文产物仅保留可访问状态标记。后端没有差异。未推送、未部署。
 
-## REQ-005：永久 RDTS 状态
+## REQ-005：RPC 完整响应超时与中断处理
+
+本地真实 HTTP 测试先复现两种挂起：持续分块但不结束时超出配置总期限仍 pending；响应体中途断开时仍 pending。根因分别为响应头到达即清除总计时器，以及未监听响应体错误／中断。
+
+修复限于本项目 `backend/src/rpc-api/jsonrpc.ts`：总计时器保留到完整响应结束，统一处理请求／响应错误及中断，拒绝时清理计时器并销毁请求。保持原超时值、认证、RPC 结果、并发及连接策略；无数据库或缓存迁移。达到总期限的慢响应现在按原配置失败，即使期间持续收到数据。验证见 [TASK-005](tasks/TASK-005.md)，本地验证不能证明 VPS 的具体触发情况；不部署、不重启 VPS。
+
+## REQ-006：永久 RDTS 状态
 
 依据 [权威 Purity 规范](https://github.com/saltduck/bitcoinpurity/blob/b711f44afd1dee477674de997f81d544f1f432c6/doc/purity-consensus.md) 与同 revision 的 `src/consensus/params.h`、`src/kernel/chainparams.cpp`、`src/deploymentstatus.h`，主网永久规则在 961637 激活且不会到期。通过固定 revision 的公开原始文档与本地共识文档逐字比较确认一致；仅只读检查该项目。非主网默认 Purity 激活参数未设置，regtest 可通过测试参数覆盖，本浏览器无法据此推断其运行参数，故不声称所有网络都永久执行。
 
@@ -44,6 +50,6 @@
 
 保留传输字段 `bip110deployment`，缩减为明确的永久状态载荷，须配套部署前后端；不新增接口、schema、Redis、轮询或超时调整。主网首页挂载基线未接入页面的现有组件；历史违规进度保持。原 Common、Blocks、分类、索引与徽章源码未改动，无数据迁移或重扫要求。
 
-测试与发布／回滚操作见 [TASK-005](tasks/TASK-005.md)。查询减少是源代码计数与模拟零调用验证；没有生产性能基准，不声称已消除 120 秒 stall。其他远端 RPC（包括 getrawtransaction）仍可能慢。未推送、未部署、未重启生产服务。
+测试与发布／回滚操作见 [TASK-006](tasks/TASK-006.md)。查询减少是源代码计数与模拟零调用验证；没有生产性能基准，不声称已消除 120 秒 stall。其他远端 RPC（包括 getrawtransaction）仍可能慢。未推送、未部署、未重启生产服务。
 
-REQ-005 本地验证：新增后端 34/34，相关后端 273/273；完整后端 277 通过、2 个配置基线失败，原始 HEAD 已复现。Cypress 状态／交易／地图 28/28、前后端类型检查与构建通过；未提供本机 API 后端的在线 mainnet E2E 未完成。详细记录见 TASK-005。
+REQ-006 本地验证：新增后端 34/34，相关后端 273/273；完整后端 277 通过、2 个配置基线失败，原始 HEAD 已复现。Cypress 状态／交易／地图 28/28、前后端类型检查与构建通过；未提供本机 API 后端的在线 mainnet E2E 未完成。详细记录见 TASK-006。

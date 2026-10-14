@@ -2,7 +2,7 @@
 
 ## Purity 节点地图
 
-首页地图组件通过现有 ApiService 请求本项目后端。后端通过固定配置的 Seeder 地址和环境变量 `PURITY_SEEDER_API_TOKEN` 调用库存及添加 API；前端不接触 Token。节点库存不存入本项目数据库，使用 60 秒内存快照，并合并并发读取。添加完成（包括上游错误／超时）使快照失效；旧的在途查询不能覆盖新快照。
+首页地图组件通过现有 ApiService 请求本项目后端。后端通过固定配置的 Seeder 地址（默认 `https://seeder.bitcoinpurity.org`）和环境变量 `PURITY_SEEDER_API_TOKEN` 调用库存及添加 API；前端不接触 Token。节点库存不存入本项目数据库，使用 60 秒内存快照，并合并并发读取。添加完成（包括上游错误／超时）使快照失效；旧的在途查询不能覆盖新快照。
 
 位置由 `MAXMIND.GEOLITE2_CITY` 指定的本地文件提供，仅需 City 数据库，不依赖 Lightning、ASN 或数据库索引功能。文件读取器延迟打开并复用；缺失文件给出明确服务错误。某 IP 无位置时返回 `location: null`。
 
@@ -24,7 +24,13 @@ Mempool 按同一输入快照计算缺失／过期数量；初始 info、稳定�
 
 入口仍在恢复磁盘／Redis 缓存后启动串行主循环；`getrawmempool()`、区块更新发生在 `$updateMempool()` 之外，其时间不计入此方法的 watchdog。磁盘缓存的“Loaded”日志原本只计文件读取／解析，后面的 `$setMempool()`、回调和 RBF 恢复不在该计时中。本次不修改恢复流程。
 
-## REQ-005：永久 RDTS 状态
+## REQ-005：JsonRPC 响应生命周期
+
+请求总计时器在收到响应头后继续运行，直到响应体 `end` 或请求失败。总超时、socket 空闲超时、请求 `error`、响应 `error` 和 `aborted` 共用拒绝逻辑：通过现有 `cbCalled` 防止重复完成，清理计时器、销毁请求、拒绝 Promise。响应 `aborted` 使用 `ECONNRESET`；正常 `end` 清理计时器后沿用原有 JSON 解析和 RPC 结果处理。
+
+不新增计时器、重试、连接池或配置，不改变 BitcoinApi 共享初始化逻辑。传输错误使共享 Promise 正常拒绝，由原有 finally 清理在途状态。
+
+## REQ-006：永久 RDTS 状态
 
 `backend/src/api/bip110-deployment.ts` 保留原模块路径，内容替换为 `PurityReducedDataApi.getStatus(currentHeight?)`。默认高度来自 `blocks.getCurrentBlockHeight()`；新区块回调直接传入公告高度，避免依赖缓存更新顺序。主网固定 RDTS 激活高度 961637，返回同步状态；未知高度（负数）或其他网络返回 null。无需缓存失效、onNewBlock、版本位阈值或磁盘／数据库访问。
 

@@ -441,7 +441,7 @@ Corresponding `docker-compose.yml` overrides:
 
 Pass `PURITY_SEEDER_API_TOKEN` to the backend container as an environment secret.
 Optional environment variables are `PURITY_SEEDER_API_URL` (default
-`https://seed.bitcoinpurity.org`) and `PURITY_SEEDER_TRUSTED_PROXIES` (a JSON array
+`https://seeder.bitcoinpurity.org`) and `PURITY_SEEDER_TRUSTED_PROXIES` (a JSON array
 of trusted proxy CIDRs). For a Docker bridge, configure the web proxy's address
 explicitly so anonymous visitors have separate submission limits.
 

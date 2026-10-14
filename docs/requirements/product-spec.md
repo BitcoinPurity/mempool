@@ -6,7 +6,7 @@
 
 访客通过可展开表单提交公网 IP 和可选端口（默认 8333）。确认、非 Purity、未完成本次验证及重复复验分别显示；重复记录不等于错误，候选记录未确认前不进入地图。超时提示验证结果尚未返回。加载失败提供重试，操作期间禁止重复提交。
 
-后端保管 Seeder 凭证，用本地 GeoLite2-City 补充位置，实施来源限流与并发上限。60 秒缓存和刷新；完成提交后失效缓存并刷新。查询／添加的上游超时分别为 15／60 秒，添加不自动重试。界面沿用国际化、深色主题及移动端适配。本需求不包含服务部署或 Seeder 源代码修改。
+后端默认通过 `https://seeder.bitcoinpurity.org` 调用 Seeder API，保管凭证，用本地 GeoLite2-City 补充位置，实施来源限流与并发上限。60 秒缓存和刷新；完成提交后失效缓存并刷新。查询／添加的上游超时分别为 15／60 秒，添加不自动重试。界面沿用国际化、深色主题及移动端适配。本需求不包含服务部署或 Seeder 源代码修改。
 
 ## REQ-002：地图显示开关
 
@@ -28,7 +28,13 @@ watchdog 仍在 120 秒报告当前等待阶段；每次调用退出时始终清
 
 后端类型识别及响应契约不变：依据 Seeder 库存中节点声明的服务能力，`NODE_NETWORK` 表示 Archive；仅有 `NODE_NETWORK_LIMITED` 表示 Prune；两个标志都有时为 Archive。缺失、无法精确读取或未声明上述能力时为未知。类型与可访问状态相互独立。本次调整仅修改前端及对应文档，不修改后端或 Seeder，不包含部署。
 
-## REQ-005：永久 Reduced Data 共识状态
+## REQ-005：RPC 完整响应超时与中断处理
+
+JsonRPC 请求总超时从请求发起持续到响应体完整结束，持续收到分块数据不会延长总期限。沿用现有超时配置及默认值，保留 socket 空闲超时；总超时拒绝为 `ETIMEDOUT`，socket 空闲超时拒绝为 `ESOCKETTIMEDOUT`。
+
+响应体中途断开及时拒绝为 `ECONNRESET`，响应错误传递给调用者；失败路径清理计时器并关闭请求连接，正常响应结束也清理计时器。认证、成功结果、RPC 错误、连接策略和同步并发不变。先使用本地真实 HTTP 服务复现两种挂起再修复，不部署、不重启 VPS。
+
+## REQ-006：永久 Reduced Data 共识状态
 
 主网首页显示 “BIP-110 Reduced Data Rules”：高度 961637 起为 “Permanently Enforced”，更早高度为 “Not Yet Enforced”；显示已核实激活高度及 “Expiration: None”。依据 [Purity 共识规范](https://github.com/saltduck/bitcoinpurity/blob/b711f44afd1dee477674de997f81d544f1f432c6/doc/purity-consensus.md)，永久规则在硬分叉首块 961637 激活，永不过期，激活后无需版本位 4 强制投票。该高度独立于本项目 ASERT 配置；ASERT 行为不变。其他网络缺少固定 Purity 激活参数，省略此状态且不展示该卡片。
 

@@ -305,11 +305,15 @@ describe('Mempool Backend Config', () => {
     jest.isolateModules(() => {
       const config = require('../config').default;
       expect(config.PURITY_SEEDER).toEqual({
-        API_URL: 'https://seed.bitcoinpurity.org',
+        API_URL: 'https://seeder.bitcoinpurity.org',
         TRUSTED_PROXIES: ['127.0.0.1/32', '::1/128'],
       });
       expect(config.PURITY_SEEDER).not.toHaveProperty('TOKEN');
     });
+    const sample = JSON.parse(fs.readFileSync(`${__dirname}/../../mempool-config.sample.json`, 'utf8'));
+    const entrypoint = fs.readFileSync(`${__dirname}/../../../docker/backend/start.sh`, 'utf8');
+    expect(sample.PURITY_SEEDER.API_URL).toBe('https://seeder.bitcoinpurity.org');
+    expect(entrypoint).toContain('__PURITY_SEEDER_API_URL__=${PURITY_SEEDER_API_URL:=https://seeder.bitcoinpurity.org}');
   });
 
   test('defaults the Purity map display to enabled in frontend and Docker configuration', () => {
