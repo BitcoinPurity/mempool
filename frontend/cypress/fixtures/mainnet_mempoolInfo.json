@@ -1,4 +1,5 @@
 {
+    "bip110deployment": {"state": "not_active", "permanent": true, "currentHeight": 837050, "activationHeight": 961637, "expiryHeight": null},
     "mempoolInfo": {
       "loaded": true,
       "size": 112686,

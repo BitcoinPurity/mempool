@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { StateService } from '@app/services/state.service';
-import { Bip110DeploymentInfo } from '@interfaces/node-api.interface';
+import { PurityReducedDataStatus } from '@interfaces/node-api.interface';
 
 @Component({
   selector: 'app-bip110-deployment',
@@ -12,7 +12,7 @@ import { Bip110DeploymentInfo } from '@interfaces/node-api.interface';
   standalone: false,
 })
 export class Bip110DeploymentComponent implements OnInit {
-  deployment$: Observable<Bip110DeploymentInfo>;
+  status$: Observable<PurityReducedDataStatus>;
   isLoading$: Observable<boolean>;
   bip110ScanProgress$: Observable<number>;
 
@@ -21,7 +21,7 @@ export class Bip110DeploymentComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.deployment$ = this.stateService.bip110Deployment$;
+    this.status$ = this.stateService.purityReducedData$;
     this.isLoading$ = this.stateService.isLoadingWebSocket$;
     this.bip110ScanProgress$ = this.stateService.loadingIndicators$.pipe(
       map(indicators => indicators['bip110-scan'] !== undefined ? indicators['bip110-scan'] : -1)

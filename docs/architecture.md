@@ -29,3 +29,11 @@ Mempool 按同一输入快照计算缺失／过期数量；初始 info、稳定�
 请求总计时器在收到响应头后继续运行，直到响应体 `end` 或请求失败。总超时、socket 空闲超时、请求 `error`、响应 `error` 和 `aborted` 共用拒绝逻辑：通过现有 `cbCalled` 防止重复完成，清理计时器、销毁请求、拒绝 Promise。响应 `aborted` 使用 `ECONNRESET`；正常 `end` 清理计时器后沿用原有 JSON 解析和 RPC 结果处理。
 
 不新增计时器、重试、连接池或配置，不改变 BitcoinApi 共享初始化逻辑。传输错误使共享 Promise 正常拒绝，由原有 finally 清理在途状态。
+
+## REQ-006：永久 RDTS 状态
+
+`backend/src/api/bip110-deployment.ts` 保留原模块路径，内容替换为 `PurityReducedDataApi.getStatus(currentHeight?)`。默认高度来自 `blocks.getCurrentBlockHeight()`；新区块回调直接传入公告高度，避免依赖缓存更新顺序。主网固定 RDTS 激活高度 961637，返回同步状态；未知高度（负数）或其他网络返回 null。无需缓存失效、onNewBlock、版本位阈值或磁盘／数据库访问。
+
+WebsocketHandler 初始快照构建改为同步；新区块在更新 `/api/v1/init-data` 共享快照时生成状态，并向 `want-blocks` 客户端发送相同状态。保留 wire 字段名 `bip110deployment`，前端经 WebsocketService → `StateService.purityReducedData$` → 原组件显示永久规则。旧组件在基线未挂载；本次在主网首页费用／难度卡之后挂载紧凑状态卡。
+
+历史分类仍由 Common 的交易标志检测、Blocks 的摘要／计数更新、原历史分类扫描及前端 Bip110Service／区块徽章处理。组件继续读取 `loadingIndicators['bip110-scan']`；这与已删除的临时部署周期扫描无关。ASERT 配置、版本数据、数据库结构与历史记录保持不变。

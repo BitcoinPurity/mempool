@@ -447,7 +447,7 @@ export class WebsocketService {
     }
 
     if (response.bip110deployment) {
-      this.stateService.bip110Deployment$.next(response.bip110deployment);
+      this.stateService.purityReducedData$.next(response.bip110deployment);
     }
 
     if (response.fees) {

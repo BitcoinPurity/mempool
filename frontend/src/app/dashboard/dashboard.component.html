@@ -16,6 +16,11 @@
         </div>
       </ng-container>
     </div>
+    <div class="row" *ngIf="stateService.network === ''">
+      <div class="col-12">
+        <app-bip110-deployment></app-bip110-deployment>
+      </div>
+    </div>
     <div class="row row-cols-1 row-cols-md-2">
     <div class="col">
       <div class="card graph-card">
