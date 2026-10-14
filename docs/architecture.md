@@ -23,3 +23,9 @@ REQ-004：后端从 Seeder 的 `services` 推导 `node_type`，优先检查 `NOD
 Mempool 按同一输入快照计算缺失／过期数量；初始 info、稳定周期 debug、慢批次或失败 warn。批次调用前记录开始，调用后记录结果或中止；watchdog 在调用前设置实际阶段，阶段切换记录上一阶段耗时和累计耗时。逐笔 Redis 添加使用同一阶段，不逐笔输出阶段日志。刷新 Redis、删除过期 Redis 交易和更新 RBF 缓存各有阶段。最外层 try/finally 仅负责清理 watchdog，原状态更新、缓存、回调和异常传播顺序保留。
 
 入口仍在恢复磁盘／Redis 缓存后启动串行主循环；`getrawmempool()`、区块更新发生在 `$updateMempool()` 之外，其时间不计入此方法的 watchdog。磁盘缓存的“Loaded”日志原本只计文件读取／解析，后面的 `$setMempool()`、回调和 RBF 恢复不在该计时中。本次不修改恢复流程。
+
+## REQ-005：JsonRPC 响应生命周期
+
+请求总计时器在收到响应头后继续运行，直到响应体 `end` 或请求失败。总超时、socket 空闲超时、请求 `error`、响应 `error` 和 `aborted` 共用拒绝逻辑：通过现有 `cbCalled` 防止重复完成，清理计时器、销毁请求、拒绝 Promise。响应 `aborted` 使用 `ECONNRESET`；正常 `end` 清理计时器后沿用原有 JSON 解析和 RPC 结果处理。
+
+不新增计时器、重试、连接池或配置，不改变 BitcoinApi 共享初始化逻辑。传输错误使共享 Promise 正常拒绝，由原有 finally 清理在途状态。

@@ -70,38 +70,38 @@ JsonRPC.prototype.call = function (method, params) {
     // Now we'll make a request to the server
     let cbCalled = false;
     const request = this.http.request(requestOptions);
+    const rejectRequest = (err: NodeJS.ErrnoException): void => {
+      if (cbCalled) {return;}
+      cbCalled = true;
+      clearTimeout(reqTimeout);
+      request.destroy();
+      reject(err);
+    };
 
     // start request timeout timer
     const reqTimeout = setTimeout(function () {
-      if (cbCalled) {return;}
-      cbCalled = true;
-      request.abort();
       const err = new Error('ETIMEDOUT');
       // @ts-ignore
       err.code = 'ETIMEDOUT';
-      reject(err);
+      rejectRequest(err);
     }, this.opts.timeout || 30000);
 
     // set additional timeout on socket in case of remote freeze after sending headers
     request.setTimeout(this.opts.timeout || 30000, function () {
-      if (cbCalled) {return;}
-      cbCalled = true;
-      request.abort();
       const err = new Error('ESOCKETTIMEDOUT');
       // @ts-ignore
       err.code = 'ESOCKETTIMEDOUT';
-      reject(err);
+      rejectRequest(err);
     });
 
-    request.on('error', function (err) {
-      if (cbCalled) {return;}
-      cbCalled = true;
-      clearTimeout(reqTimeout);
-      reject(err);
-    });
+    request.on('error', rejectRequest);
 
     request.on('response', (response) => {
-      clearTimeout(reqTimeout);
+      response.on('error', rejectRequest);
+      response.on('aborted', () => {
+        const err = Object.assign(new Error('RPC response aborted'), { code: 'ECONNRESET' });
+        rejectRequest(err);
+      });
 
       // We need to buffer the response chunks in a nonblocking way.
       let buffer = '';
@@ -116,6 +116,7 @@ JsonRPC.prototype.call = function (method, params) {
 
         if (cbCalled) {return;}
         cbCalled = true;
+        clearTimeout(reqTimeout);
 
         try {
           var decoded = JSON.parse(buffer);

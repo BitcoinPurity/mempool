@@ -23,3 +23,7 @@ REQ-004 新增 `node_type: "archive" | "prune" | "unknown"`，独立于 `p2p_rea
 ## REQ-003：同步诊断
 
 本需求不增删公开端点，不改变请求／响应格式。`GET /api/v1/fees/recommended` 沿用未同步时的 HTTP 503 和正常同步后的成功响应。诊断仅写入现有后端 logger；5 秒阈值只控制日志，不改变 RPC 超时、认证、序列化或结果。Redis 与磁盘缓存格式不变，无数据库迁移。
+
+## REQ-005：内部 RPC 传输错误
+
+公开 API 和 RPC 请求／成功响应格式不变。内部 JsonRPC 的 `ETIMEDOUT` 覆盖从请求发起到完整响应结束的总期限，持续分块不会延长期限；socket 空闲超时保留 `ESOCKETTIMEDOUT`。响应中断拒绝为 `ECONNRESET`，响应 `error` 保留原错误。超时值、认证、RPC 错误码及解析错误行为不变。
