@@ -17,4 +17,4 @@ The fork retained the upstream mempool-ci self-hosted runner label, but has no r
 
 ## Verification
 
-Workflow contract tests failed before the changes. Local results and remote run evidence will be recorded after the first push. No merge or deployment.
+Workflow contract tests failed before the changes; all 15 now pass. Full backend CI unit tests pass 354/354 including configuration and Signet regressions. Frontend lint passes with warnings only; backend build passes. actionlint validates all workflows. The first push is present on PR #3 but has not produced Actions runs; a manual-dispatch entry point is added to diagnose remote execution separately from PR events. Further remote evidence is pending. No merge or deployment.
