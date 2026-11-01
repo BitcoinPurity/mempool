@@ -1,3 +1,4 @@
+import config from '../../config';
 import { Common } from '../../api/common';
 import { TransactionFlags } from '../../mempool.interfaces';
 import blocks from '../../api/blocks';
@@ -79,5 +80,33 @@ describe('historical BIP-110 classification remains independent of permanent enf
     }]);
     expect(cache.getBlocks()[0].extras).toEqual({ bip110Signaling: true, bip110ViolationCount: 2, bip110ViolationWeight: 1200 });
     expect(cache.getBlockSummaries()[0].transactions).toHaveLength(3);
+  });
+});
+
+
+describe('Signet structural classification versus consensus', () => {
+  const commitment = '6a24aa21a9ed' + '00'.repeat(32) + '00'.repeat(100);
+  const coinbase = (height: number, outputs = [commitment]) => ({
+    txid: 'coinbase', vin: [{ is_coinbase: true }],
+    vout: outputs.map(scriptpubkey => ({ scriptpubkey, scriptpubkey_type: 'op_return' })),
+    status: { confirmed: true, block_height: height },
+  } as any);
+  afterEach(() => { config.MEMPOOL.NETWORK = 'mainnet'; });
+  test('only exempts the selected post-activation Signet witness commitment', () => {
+    config.MEMPOOL.NETWORK = 'signet';
+    expect(Common.getBIP110Flags(coinbase(327022))).toBe(0n);
+    expect(Common.getBIP110Flags(coinbase(327023))).toBe(0n);
+    expect(Common.getBIP110Flags(coinbase(327021))).not.toBe(0n);
+    expect(Common.getBIP110Flags(coinbase(327022, [commitment, commitment]))).not.toBe(0n);
+    expect(Common.getBIP110Flags(coinbase(327022, [commitment + '00'.repeat(60)]))).not.toBe(0n);
+    config.MEMPOOL.NETWORK = 'mainnet';
+    expect(Common.getBIP110Flags(coinbase(1000000))).not.toBe(0n);
+  });
+  test('retains hypothetical historical flags rather than inferring consensus rejection', () => {
+    config.MEMPOOL.NETWORK = 'signet';
+    const historical = { txid: 'old', vin: [], vout: [{ scriptpubkey: '00'.repeat(35) }],
+      status: { confirmed: true, block_height: 327021 } } as any;
+    expect(Common.hasAnyBIP110Violation(Common.getBIP110Flags(historical))).toBe(true);
+    expect(reducedData.getStatus(327021)?.state).toBe('not_active');
   });
 });

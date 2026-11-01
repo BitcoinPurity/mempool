@@ -1,3 +1,7 @@
+import config from '../../config';
+import difficultyApi, { isAsertActive, getAsertAnchorHeight } from '../../api/difficulty-adjustment';
+import { resolvePurityConfig } from '../../purity-config';
+import blocks from '../../api/blocks';
 import {
   calcBitsDifference,
   calcDifficultyAdjustment,
@@ -201,5 +205,52 @@ describe('Mempool Difficulty Adjustment', () => {
     expect(result.difficultyChange).toBeCloseTo(-50, 5);
     expect(result.previousRetarget).toBe(-1.5);
     expect(result.adjustedTimeAvg).toBe(600_000);
+  });
+});
+
+
+jest.mock('../../api/blocks', () => ({ __esModule: true, default: {
+  getPreviousDifficultyRetarget: jest.fn(() => 0), getBlocks: jest.fn(), getCurrentBlockHeight: jest.fn(),
+  getAsertAnchor: jest.fn(), getCurrentBits: jest.fn(), getLastDifficultyAdjustmentTime: jest.fn(() => 1792400000),
+  getAsertWindowBlockTime: jest.fn(() => null), getQuarterEpochBlockTime: jest.fn(() => null),
+} }));
+
+describe('network-aware difficulty API', () => {
+  const mainConfig = { ...config.PURITY };
+  const { headers, anchorParentTime } = require('../../__fixtures__/purity-signet-headers.json');
+  beforeEach(() => {
+    config.MEMPOOL.NETWORK = 'signet';
+    config.PURITY = resolvePurityConfig('signet');
+    (blocks.getAsertAnchor as jest.Mock).mockReturnValue({ height: 327017, bits: 0x1d154f9b, parentTime: anchorParentTime });
+  });
+  afterEach(() => { config.MEMPOOL.NETWORK = 'mainnet'; config.PURITY = { ...mainConfig }; });
+  test.each([327020, 327021, 327022, 327023])('selects correct difficulty algorithm at tip %i', height => {
+    const header = headers.find(b => b.height === height);
+    (blocks.getBlocks as jest.Mock).mockReturnValue([{ height, bits: header.bits, timestamp: header.time }]);
+    (blocks.getCurrentBlockHeight as jest.Mock).mockReturnValue(height);
+    const result = difficultyApi.getDifficultyAdjustment();
+    expect(result?.algorithm).toBe(height + 1 >= 327022 ? 'asert' : 'legacy');
+    expect(result?.nextBlockDifficultyIsReference).toBe(height === 327021 ? true : undefined);
+    if (height + 1 >= 327022) {
+      expect(result?.remainingBlocks).toBe(1);
+      expect(result?.nextRetargetHeight).toBe(height + 1);
+    }
+    if (height === 327022) {
+      // Expected difficulty delta comes from observed official 327023 nBits.
+      const oldTarget = bitsToTarget(header.bits);
+      const nextTarget = bitsToTarget(headers.find(b => b.height === 327023).bits);
+      const expected = Number(oldTarget * 100000000n / nextTarget) / 1000000 - 100;
+      expect(result?.difficultyChange).toBe(expected);
+    }
+  });
+  test('does not activate on another Bitcoin test network using Mainnet fallback heights', () => {
+    config.MEMPOOL.NETWORK = 'testnet';
+    expect(isAsertActive(1000000)).toBe(false);
+  });
+  test('keeps the deployed Mainnet estimate boundary and anchor', () => {
+    config.MEMPOOL.NETWORK = 'mainnet'; config.PURITY = mainConfig;
+    expect(getAsertAnchorHeight()).toBe(961632);
+    expect(isAsertActive(961635)).toBe(false);
+    expect(isAsertActive(961636)).toBe(true);
   });
 });

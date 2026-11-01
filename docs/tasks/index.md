@@ -8,3 +8,4 @@
 | [TASK-004](TASK-004.md) | REQ-004 标记层级与后端 Archive / Prune 类型 | 本地实现与验证完成，未部署 |
 | [TASK-005](TASK-005.md) | REQ-005 RPC 完整响应超时与中断处理 | 本地实现与验证完成，未部署 |
 | [TASK-006](TASK-006.md) | REQ-006 永久 RDTS 状态替换部署追踪 | 本地实现与相关验证完成，完整套件有基线失败；未推送／部署 |
+| [TASK-007](TASK-007.md) | REQ-007 Purity Signet backend | Implemented and locally verified; baseline test/lint failures documented; no deployment |

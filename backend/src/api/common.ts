@@ -9,6 +9,7 @@ import { isPoint } from '../utils/secp256k1';
 import logger from '../logger';
 import { getVarIntLength, opcodes, parseMultisigScript } from '../utils/bitcoin-script';
 import { IEsploraApi } from './bitcoin/esplora-api.interface';
+import { OFFICIAL_SIGNET } from '../purity-config';
 
 // Bitcoin Core default policy settings
 const MAX_STANDARD_TX_WEIGHT = 400_000;
@@ -675,12 +676,26 @@ export class Common {
    *
    * Note: Inputs spending UTXOs created before activation height are exempt.
    */
-  static getBIP110Flags(tx: TransactionExtended): bigint {
+  static getBIP110Flags(tx: TransactionExtended, blockHeight = tx.status?.block_height): bigint {
     let flags = 0n;
 
+    let signetCommitmentIndex = -1;
+    if (config.MEMPOOL.NETWORK === 'signet' && blockHeight !== undefined &&
+        blockHeight >= OFFICIAL_SIGNET.ACTIVATION_HEIGHT && tx.vin[0]?.is_coinbase) {
+      // The full node validates the Signet solution. Only its BIP141-selected output is exempt.
+      for (let i = 0; i < tx.vout.length; i++) {
+        if (tx.vout[i].scriptpubkey.length >= 76 && tx.vout[i].scriptpubkey.startsWith('6a24aa21a9ed')) {
+          signetCommitmentIndex = i;
+        }
+      }
+    }
+
     // Rule 1: Check output scriptPubKey sizes
-    for (const vout of tx.vout) {
+    for (const [index, vout] of tx.vout.entries()) {
       const scriptSize = vout.scriptpubkey.length / 2; // hex string to bytes
+      if (index === signetCommitmentIndex && scriptSize <= 195) {
+        continue;
+      }
       if (vout.scriptpubkey_type === 'op_return') {
         if (scriptSize > BIP110_MAX_OPRETURN_SIZE) {
           flags |= TransactionFlags.bip110_large_scriptpubkey;
@@ -1287,7 +1302,7 @@ export class Common {
     }
 
     // BIP110 violation detection
-    flags |= this.getBIP110Flags(tx);
+    flags |= this.getBIP110Flags(tx, height);
 
     return Number(flags);
   }
@@ -1397,8 +1412,9 @@ export class Common {
    *
    * v3: BIP110 Rule 2 P2SH redeemScript exemption via raw scriptSig parsing
    *     (fixes false "large data push" on 3-of-4 uncompressed CHECKMULTISIG).
+   * Signet v4 excludes the selected post-activation coinbase commitment.
    */
-  static readonly BLOCKS_SUMMARY_CLASSIFICATION_VERSION = 3;
+  static readonly BLOCKS_SUMMARY_CLASSIFICATION_VERSION = config.MEMPOOL.NETWORK === 'signet' ? 4 : 3;
 
   static blocksSummariesIndexingEnabled(): boolean {
     return (

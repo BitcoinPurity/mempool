@@ -8,7 +8,8 @@
 
     <div *ngIf="hasBip110Violation" class="alert alert-bip110-violation" role="alert">
       <span class="bip110-icon">☢️</span>
-      <span class="bip110-warning-text">BIP-110 VIOLATION: This transaction would be <strong>invalid</strong> under the proposed soft fork consensus rules.</span>
+      <span *ngIf="network !== 'signet'" class="bip110-warning-text">BIP-110 VIOLATION: This transaction would be <strong>invalid</strong> under the proposed soft fork consensus rules.</span>
+      <span *ngIf="network === 'signet'" class="bip110-warning-text">BIP-110 structural flags: These checks do not establish consensus invalidity. Transactions confirmed before Purity Signet activation were accepted under the historical rules.</span>
     </div>
 
     <ng-container *ngIf="!rbfTransaction || rbfTransaction?.size || tx">

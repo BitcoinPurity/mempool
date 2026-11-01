@@ -155,3 +155,37 @@ describe('BitcoindElectrsApi script hash RPC', () => {
     expect((api as any).historyRequests.size).toBe(0);
   });
 });
+
+
+describe('Electrum Signet identity', () => {
+  const headers = require('../../__fixtures__/purity-signet-headers.json').headers;
+  test('checks the actual Electrum activation header with protocol 1.4 calls', async () => {
+    const request = jest.fn().mockResolvedValueOnce({ height: 327023 }).mockResolvedValueOnce(headers[5].header);
+    const api = new BitcoindElectrsApi({}, { request });
+    await expect(api.$validateSignetChain()).resolves.toBe('verified');
+    expect(request.mock.calls).toEqual([['blockchain.headers.subscribe', []], ['blockchain.block.header', [327022]]]);
+  });
+  test('does not request a missing activation header during Electrs IBD', async () => {
+    const request = jest.fn().mockResolvedValue({ height: 327021 });
+    await expect(new BitcoindElectrsApi({}, { request }).$validateSignetChain()).resolves.toBe('pending');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  test.each([headers[4].header, 'bad-header'])('rejects a wrong or malformed activation header', async header => {
+    const request = jest.fn().mockResolvedValueOnce({ height: 327022 }).mockResolvedValueOnce(header);
+    await expect(new BitcoindElectrsApi({}, { request }).$validateSignetChain()).rejects.toThrow(/activation hash/);
+  });
+});
+
+
+test('Signet identity validation times out if Electrum stops responding', async () => {
+  jest.useFakeTimers();
+  try {
+    const request = jest.fn(() => new Promise(() => {}));
+    const result = new BitcoindElectrsApi({}, { request }).$validateSignetChain();
+    const assertion = expect(result).rejects.toThrow('Electrum RPC timeout: headers.subscribe');
+    await jest.advanceTimersByTimeAsync(30000);
+    await assertion;
+  } finally {
+    jest.useRealTimers();
+  }
+});

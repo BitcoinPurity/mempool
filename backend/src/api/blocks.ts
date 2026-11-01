@@ -33,6 +33,7 @@ import mempoolBlocks from './mempool-blocks';
 import statistics from './statistics/statistics';
 import { calcBitsDifference, ASERT_EPOCH_BLOCKS, isAsertActive, getAsertAnchorHeight } from './difficulty-adjustment';
 import { AsertAnchor, difficultyChangeFromBits } from './asert';
+import { OFFICIAL_SIGNET } from '../purity-config';
 import AccelerationRepository from '../repositories/AccelerationRepository';
 import { calculateGoodBlockCpfp } from './cpfp';
 import blockProcessor, { BlockProcessingResult, detectTemplateAlgorithm, saveCpfpDataToCpfpSummary } from './block-processor';
@@ -479,7 +480,7 @@ class Blocks {
     extras.bip110ViolationWeight = 0;
     if (transactions && transactions.length > 1) {
       for (const tx of transactions) {
-        if (Common.getBIP110Flags(tx) !== 0n) {
+        if (Common.getBIP110Flags(tx, block.height) !== 0n) {
           extras.bip110ViolationCount++;
           extras.bip110ViolationWeight += (tx.weight || 0);
         }
@@ -1577,6 +1578,14 @@ class Blocks {
     const anchorHeight = getAsertAnchorHeight();
     const knownHeight = tipHeight ?? this.currentBlockHeight;
     if (knownHeight < anchorHeight || anchorHeight < 1) {
+      return;
+    }
+    if (config.MEMPOOL.NETWORK === 'signet') {
+      this.asertAnchor = {
+        height: anchorHeight,
+        bits: OFFICIAL_SIGNET.ASERT_ANCHOR_BITS,
+        parentTime: OFFICIAL_SIGNET.ASERT_ANCHOR_PARENT_TIME,
+      };
       return;
     }
     try {

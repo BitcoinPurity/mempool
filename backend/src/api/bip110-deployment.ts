@@ -1,5 +1,6 @@
 import config from '../config';
 import blocks from './blocks';
+import { OFFICIAL_SIGNET } from '../purity-config';
 
 // Purity consensus: doc/purity-consensus.md, Consensus::MAINNET_PURITY_ACTIVATION_HEIGHT.
 // This is independent of the explorer's ASERT activation/anchor configuration.
@@ -15,15 +16,16 @@ export interface PurityReducedDataStatus {
 
 class PurityReducedDataApi {
   public getStatus(currentHeight = blocks.getCurrentBlockHeight()): PurityReducedDataStatus | null {
-    // Other networks have no verified fixed Purity activation parameters.
-    if (config.MEMPOOL.NETWORK !== 'mainnet' || currentHeight < 0) {
+    if (!['mainnet', 'signet'].includes(config.MEMPOOL.NETWORK) || currentHeight < 0) {
       return null;
     }
+    const activationHeight = config.MEMPOOL.NETWORK === 'signet'
+      ? OFFICIAL_SIGNET.ACTIVATION_HEIGHT : MAINNET_REDUCED_DATA_ACTIVATION_HEIGHT;
     return {
-      state: currentHeight >= MAINNET_REDUCED_DATA_ACTIVATION_HEIGHT ? 'active' : 'not_active',
+      state: currentHeight >= activationHeight ? 'active' : 'not_active',
       permanent: true,
       currentHeight,
-      activationHeight: MAINNET_REDUCED_DATA_ACTIVATION_HEIGHT,
+      activationHeight,
       expiryHeight: null,
     };
   }

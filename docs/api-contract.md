@@ -52,3 +52,16 @@ WebSocket `action=init`、`GET /api/v1/init-data` 以及订阅 `blocks` 的新�
 - 提供器遇到其他网络或未知高度返回 null；沿用快照序列化规则省略该字段。其他网络不显示主网永久状态卡。
 
 字段名保留，载荷已变更，前后端须作为配套版本发布。旧载荷不作静默兼容；第三方消费者应按新类型更新。区块公告、mempool 变更／确认、费用、难度及其他 WebSocket 字段不变。历史 `loadingIndicators['bip110-scan']`、违规标志、区块计数／权重、摘要与徽章契约均不变。
+
+
+## REQ-007: Signet compatibility
+
+Existing route paths and response fields remain compatible. A Signet process uses the same unprefixed `/api/v1/` routes on port 8998; the existing frontend/reverse proxy maps `/signet/api/...` to that process.
+
+- `GET /api/v1/difficulty-adjustment` and WebSocket difficulty payloads report `algorithm: "legacy"` before computing block 327022 and `"asert"` from that block onward. ASERT retarget height is tip+1, with one remaining block. Signet percentages use the compact-rounded consensus target and its own powLimit.
+- At Signet tip 327021, the optional additive field `nextBlockDifficultyIsReference: true` identifies the activation target ceiling. A harder claimed activation target is also acceptable to the full node; equality is required afterward. Historical difficulty/retarget data use observed nBits, never classify a block invalid solely from that activation forecast. This flag is omitted at all other heights and on Mainnet.
+- Existing `bip110deployment` payload also supports Signet: `activationHeight: 327022`, `state: "not_active" | "active"`, `permanent: true`, `expiryHeight: null`. Mainnet remains independently fixed at 961637.
+- Existing transaction flags and block violation counts remain structural/hypothetical indicators. Accepted pre-fork transactions are not declared consensus-invalid. Signet's selected coinbase witness commitment is exempt from the 83-byte OP_RETURN classifier limit up to 195 bytes after activation.
+- Incorrect Signet sources abort startup. If periodic validation fails after startup, HTTP returns 503 and WebSockets disconnect (1013); retries can restore service. Sources below activation are pending, logged as such and allowed to synchronize. RPC or Electrum IBD below activation does not produce an activation-hash mismatch. No new identity endpoint is added.
+
+See [operational validation](purity-signet.md) for direct RPC/Electrum checks. No database or existing block/transaction API shape changes are required.
