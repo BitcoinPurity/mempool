@@ -2,13 +2,21 @@ name: CI Pipeline for the Backend and Frontend
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches:
-      - master
+      - main
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_OPTIONS: --max-old-space-size=6144
+  NG_BUILD_MAX_WORKERS: 2
 
 jobs:
   backend:
@@ -18,12 +26,12 @@ jobs:
         node: ["24.13.0"]
         flavor: ["dev", "prod"]
       fail-fast: false
-    runs-on: mempool-ci
+    runs-on: ubuntu-24.04
 
     name: Backend (${{ matrix.flavor }}) - node ${{ matrix.node }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ matrix.node }}/${{ matrix.flavor }}
 
@@ -42,14 +50,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ matrix.node }}/${{ matrix.flavor }}/backend/node_modules
-          key: ${{ runner.os }}-backend-${{ matrix.flavor }}-node-${{ matrix.node }}-${{ hashFiles('${{ matrix.node }}/${{ matrix.flavor }}/backend/package-lock.json') }}
+          key: ${{ runner.os }}-backend-${{ matrix.flavor }}-node-${{ matrix.node }}-${{ hashFiles('**/backend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-backend-${{ matrix.flavor }}-node-${{ matrix.node }}-
             ${{ runner.os }}-backend-${{ matrix.flavor }}-
 
       - name: Read rust-toolchain file from repository
         id: gettoolchain
-        run: echo "::set-output name=toolchain::$(cat ./rust/gbt/rust-toolchain)"
+        run: echo "toolchain=$(cat ./rust/gbt/rust-toolchain)" >> "$GITHUB_OUTPUT"
         working-directory: ${{ matrix.node }}/${{ matrix.flavor }}
 
       - name: Cache Rust dependencies
@@ -61,7 +69,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             ${{ matrix.node }}/${{ matrix.flavor }}/rust/gbt/target/
-          key: ${{ runner.os }}-cargo-${{ matrix.flavor }}-${{ hashFiles('${{ matrix.node }}/${{ matrix.flavor }}/rust/gbt/**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ matrix.flavor }}-${{ hashFiles('**/rust/gbt/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ matrix.flavor }}-
             ${{ runner.os }}-cargo-
@@ -78,9 +86,9 @@ jobs:
         run: npm ci
         working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
 
-      - name: Install (Prod dependencies only)
+      - name: Install build dependencies (production build)
         if: ${{ matrix.flavor == 'prod'}}
-        run: npm ci --omit=dev --omit=optional
+        run: npm ci --omit=optional
         working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
 
       - name: Lint
@@ -88,9 +96,19 @@ jobs:
         run: npm run lint
         working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
 
+      - name: Validate CI workflow contracts
+        if: ${{ matrix.flavor == 'dev'}}
+        run: node --test .github/tests/ci.test.cjs
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}
+
+      - name: Signet regression tests
+        if: ${{ matrix.flavor == 'dev'}}
+        run: npm run test:signet
+        working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
+
       - name: Unit Tests
         if: ${{ matrix.flavor == 'dev'}}
-        run: npm run test:ci
+        run: npm run test:ci -- --runInBand --forceExit
         working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/backend
 
       - name: Build
@@ -103,10 +121,10 @@ jobs:
     strategy:
       matrix:
         node: ["24.13.0"]
-    runs-on: mempool-ci
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: assets
 
@@ -125,13 +143,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: assets/frontend/node_modules
-          key: ${{ runner.os }}-cache-frontend-node-${{ matrix.node }}-${{ hashFiles('assets/frontend/package-lock.json') }}
+          key: ${{ runner.os }}-cache-frontend-node-${{ matrix.node }}-${{ hashFiles('**/frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-cache-frontend-node-${{ matrix.node }}-
             ${{ runner.os }}-cache-frontend-
 
-      - name: Install (Prod dependencies only)
-        run: npm ci --omit=dev --omit=optional
+      - name: Install build dependencies (production build)
+        run: npm ci --omit=optional
         working-directory: assets/frontend
 
       - name: Restore cached mining pool assets
@@ -214,12 +232,12 @@ jobs:
         node: ["24.13.0"]
         flavor: ["dev", "prod"]
       fail-fast: false
-    runs-on: mempool-ci
+    runs-on: ubuntu-24.04
 
     name: Frontend (${{ matrix.flavor }}) - node ${{ matrix.node }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ matrix.node }}/${{ matrix.flavor }}
 
@@ -238,13 +256,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ matrix.node }}/${{ matrix.flavor }}/frontend/node_modules
-          key: ${{ runner.os }}-frontend-${{ matrix.flavor }}-node-${{ matrix.node }}-${{ hashFiles('${{ matrix.node }}/${{ matrix.flavor }}/frontend/package-lock.json') }}
+          key: ${{ runner.os }}-frontend-${{ matrix.flavor }}-node-${{ matrix.node }}-${{ hashFiles('**/frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-frontend-${{ matrix.flavor }}-node-${{ matrix.node }}-
             ${{ runner.os }}-frontend-${{ matrix.flavor }}-
 
-      - name: Install (Prod dependencies only)
-        run: npm ci --omit=dev --omit=optional
+      - name: Install build dependencies (production build)
+        run: npm ci --omit=optional
         if: ${{ matrix.flavor == 'prod'}}
         working-directory: ${{ matrix.node }}/${{ matrix.flavor }}/frontend
 
@@ -311,7 +329,7 @@ jobs:
   
   e2e:
     if: "(github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ops') && !contains(github.head_ref, 'ops/')) || github.event_name == 'push'"
-    runs-on: mempool-ci
+    runs-on: ubuntu-24.04
     needs: frontend
     strategy:
       fail-fast: false
@@ -322,7 +340,7 @@ jobs:
     name: E2E tests for ${{ matrix.module }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ matrix.module }}
 
@@ -340,7 +358,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ matrix.module }}/frontend/node_modules
-          key: ${{ runner.os }}-e2e-${{ matrix.module }}-node-${{ matrix.node }}-${{ hashFiles('${{ matrix.module }}/frontend/package-lock.json') }}
+          key: ${{ runner.os }}-e2e-${{ matrix.module }}-node-${{ matrix.node }}-${{ hashFiles('**/frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-e2e-${{ matrix.module }}-node-${{ matrix.node }}-
             ${{ runner.os }}-e2e-${{ matrix.module }}-
@@ -382,85 +400,70 @@ jobs:
       # mempool
       - name: Chrome browser tests (${{ matrix.module }})
         if: ${{ matrix.module == 'mempool' }}
-        uses: cypress-io/github-action@v5
+        uses: cypress-io/github-action@v6
         with:
-          tag: ${{ github.event_name }}
           working-directory: ${{ matrix.module }}/frontend
           build: npm run config:defaults:${{ matrix.module }}
           start: npm run start:parameterized
           wait-on: "http://localhost:4200"
           wait-on-timeout: 120
-          record: true
-          parallel: true
+          record: false
+          parallel: false
           spec: |
             cypress/e2e/mainnet/*.spec.ts
             cypress/e2e/signet/*.spec.ts
-          group: Tests on Chrome (${{ matrix.module }})
           browser: "chrome"
-          ci-build-id: "${{ github.sha }}-${{ github.workflow }}-${{ github.event_name }}"
         env:
           COMMIT_INFO_MESSAGE: ${{ github.event.pull_request.title }}
-          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
 
       # liquid
       - name: Chrome browser tests (${{ matrix.module }})
         if: ${{ matrix.module == 'liquid' }}
-        uses: cypress-io/github-action@v5
+        uses: cypress-io/github-action@v6
         with:
-          tag: ${{ github.event_name }}
           working-directory: ${{ matrix.module }}/frontend
           build: npm run config:defaults:${{ matrix.module }}
           start: npm run start:parameterized
           wait-on: "http://localhost:4200"
           wait-on-timeout: 120
-          record: true
-          parallel: true
+          record: false
+          parallel: false
           spec: |
             cypress/e2e/liquid/liquid.spec.ts
             cypress/e2e/liquidtestnet/liquidtestnet.spec.ts
-          group: Tests on Chrome (${{ matrix.module }})
           browser: "chrome"
-          ci-build-id: "${{ github.sha }}-${{ github.workflow }}-${{ github.event_name }}"
         env:
           COMMIT_INFO_MESSAGE: ${{ github.event.pull_request.title }}
-          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
 
       # testnet
       - name: Chrome browser tests (${{ matrix.module }})
         if: ${{ matrix.module == 'testnet4' }}
-        uses: cypress-io/github-action@v5
+        uses: cypress-io/github-action@v6
         with:
-          tag: ${{ github.event_name }}
           working-directory: ${{ matrix.module }}/frontend
           build: npm run config:defaults:mempool
           start: npm run start:parameterized
           wait-on: "http://localhost:4200"
           wait-on-timeout: 120
-          record: true
-          parallel: true
+          record: false
+          parallel: false
           spec: |
             cypress/e2e/testnet4/*.spec.ts
-          group: Tests on Chrome (${{ matrix.module }})
           browser: "chrome"
-          ci-build-id: "${{ github.sha }}-${{ github.workflow }}-${{ github.event_name }}"
         env:
           CYPRESS_REROUTE_TESTNET: true
           COMMIT_INFO_MESSAGE: ${{ github.event.pull_request.title }}
-          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
   validate_docker_json:
     if: "(github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'ops') && !contains(github.head_ref, 'ops/')) || github.event_name == 'push'"
-    runs-on: mempool-ci
+    runs-on: ubuntu-24.04
     name: Validate generated backend Docker JSON
 
     steps: 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: docker
       

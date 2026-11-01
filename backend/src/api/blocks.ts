@@ -78,6 +78,7 @@ class Blocks {
   /**
    * Align in-memory block pool extras with the database after mining-pool updates
    * or when restoring blocks from Redis/disk cache.
+   * @asyncUnsafe
    */
   public async $refreshCachedBlockPoolsFromDb(): Promise<number> {
     if (!config.DATABASE.ENABLED || this.blocks.length === 0) {

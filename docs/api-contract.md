@@ -65,3 +65,8 @@ Existing route paths and response fields remain compatible. A Signet process use
 - Incorrect Signet sources abort startup. If periodic validation fails after startup, HTTP returns 503 and WebSockets disconnect (1013); retries can restore service. Sources below activation are pending, logged as such and allowed to synchronize. RPC or Electrum IBD below activation does not produce an activation-hash mismatch. No new identity endpoint is added.
 
 See [operational validation](purity-signet.md) for direct RPC/Electrum checks. No database or existing block/transaction API shape changes are required.
+
+
+## REQ-008: GitHub-hosted CI
+
+No application API changes. CI listens to main pushes and PR updates and runs the deterministic Signet regression suite without node credentials.

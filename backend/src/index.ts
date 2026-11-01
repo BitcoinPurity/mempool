@@ -85,7 +85,10 @@ class Server {
     this.app = express();
 
     if (!config.MEMPOOL.SPAWN_CLUSTER_PROCS) {
-      void this.startServer();
+      this.startServer().catch(error => {
+        logger.err(`Server startup failed: ${error instanceof Error ? error.message : error}`);
+        this.forceExit('startup', 1);
+      });
       return;
     }
 
@@ -109,11 +112,14 @@ class Server {
         }, 10000);
       });
     } else {
-      void this.startServer(true);
+      this.startServer(true).catch(error => {
+        logger.err(`Server startup failed: ${error instanceof Error ? error.message : error}`);
+        this.forceExit('startup', 1);
+      });
     }
   }
 
-  /** @asyncSafe */
+  /** @asyncUnsafe */
   async startServer(worker = false): Promise<void> {
     logger.notice(`Starting Mempool Server${worker ? ' (worker)' : ''}... (${backendInfo.getShortCommitHash()})`);
 

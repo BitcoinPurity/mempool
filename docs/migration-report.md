@@ -62,3 +62,8 @@ Network-aware ASERT/profile validation and isolated Signet defaults are additive
 Signet block-summary classification uses version 4 so its coinbase exception is recomputed when summaries are enabled; Mainnet remains version 3 and needs no rescan. API consumers may ignore the optional activation-reference field; all existing fields/routes are retained. Frontend changes are limited to that optional type and a Signet-specific warning explaining historical structural flags. Existing network selection and reverse-proxy routing remain.
 
 Rollback: stop only the Signet service and restore its previous binary/config if required. The Mainnet process and data need no rollback. Do not attach a previous Bitcoin Core Signet database to Purity. Contabo deployment, actual DB authentication, Electrs synchronization and resource usage remain operational acceptance tasks; local tests are not deployment evidence. Validation and modified file list are in [TASK-007](tasks/TASK-007.md).
+
+
+## REQ-008: GitHub-hosted CI
+
+CI configuration moves from the unavailable upstream runner to GitHub-hosted Ubuntu. No application configuration, dependency lockfile, database migration or production rollout is required. See TASK-008 for local and Actions results.
