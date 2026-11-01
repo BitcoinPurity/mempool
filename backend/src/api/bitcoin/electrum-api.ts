@@ -8,6 +8,9 @@ import logger from '../../logger';
 import crypto from 'crypto-js';
 import loadingIndicators from '../loading-indicators';
 import memoryCache from '../memory-cache';
+import { Block } from 'bitcoinjs-lib';
+import { OFFICIAL_SIGNET } from '../../purity-config';
+import { SignetIdentity } from '../purity-signet';
 
 const ELECTRUM_RETRY_PERIOD_MS = 5000;
 const ELECTRUM_HISTORY_CACHE_SECONDS = 10;
@@ -16,6 +19,7 @@ const ELECTRUM_HISTORY_TIMEOUT_MS = 30_000;
 
 class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
   private electrumClient: any;
+  private electrumReady: Promise<void> = Promise.resolve();
   private historyRequests = new Map<string, Promise<IElectrumApi.ScriptHashHistory[]>>();
   private balanceRequests = new Map<string, Promise<IElectrumApi.ScriptHashBalance>>();
 
@@ -47,7 +51,7 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
 
     this.patchElectrumClientSocketLifecycle();
 
-    this.electrumClient.initElectrum(electrumConfig, electrumPersistencePolicy)
+    this.electrumReady = this.electrumClient.initElectrum(electrumConfig, electrumPersistencePolicy)
       .then(() => { })
       .catch((err) => {
         logger.err(`Error connecting to Electrum Server at ${config.ELECTRUM.HOST}:${config.ELECTRUM.PORT}: ${err && err.message ? err.message : err}`);
@@ -101,6 +105,27 @@ class BitcoindElectrsApi extends BitcoinApi implements AbstractBitcoinApi {
     if (this.electrumClient && typeof this.electrumClient.close === 'function') {
       this.electrumClient.close();
     }
+  }
+
+  /** @asyncUnsafe */
+  public async $validateSignetChain(): Promise<SignetIdentity> {
+    await this.$rpcWithTimeout('initialization', '', ELECTRUM_HISTORY_TIMEOUT_MS, this.electrumReady);
+    // Use protocol 1.4 directly: the client wrappers use legacy / misspelled methods.
+    const tip = await this.$rpcWithTimeout<{ height: number }>('headers.subscribe', '',
+      ELECTRUM_HISTORY_TIMEOUT_MS, this.electrumClient.request('blockchain.headers.subscribe', []));
+    if (!Number.isSafeInteger(tip?.height) || tip.height < 0) {
+      throw new Error('Invalid Electrum tip height');
+    }
+    if (tip.height < OFFICIAL_SIGNET.ACTIVATION_HEIGHT) {
+      return 'pending';
+    }
+    const header = await this.$rpcWithTimeout<string>('block.header', '', ELECTRUM_HISTORY_TIMEOUT_MS,
+      this.electrumClient.request('blockchain.block.header', [OFFICIAL_SIGNET.ACTIVATION_HEIGHT]));
+    if (typeof header !== 'string' || !/^[0-9a-f]{160}$/i.test(header) ||
+        Block.fromHex(header).getId() !== OFFICIAL_SIGNET.ACTIVATION_HASH) {
+      throw new Error('Electrum Purity Signet activation hash mismatch');
+    }
+    return 'verified';
   }
 
   /** @asyncUnsafe */

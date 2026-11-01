@@ -42,6 +42,7 @@ describe('Mempool Backend Config', () => {
         POOLS_JSON_TREE_URL: 'https://api.github.com/repos/mempool/mining-pools/git/trees/master',
         POOLS_JSON_URL: 'https://raw.githubusercontent.com/mempool/mining-pools/master/pools-v2.json',
         POOLS_UPDATE_DELAY: 604800,
+        POOLS_OVERLAY_PATH: '',
         AUDIT: false,
         AUDIT_GBT: false,
         RUST_GBT: true,
@@ -177,7 +178,7 @@ describe('Mempool Backend Config', () => {
 
       const config = jest.requireActual('../config').default;
 
-      expect(config.MEMPOOL).toStrictEqual(fixture.MEMPOOL);
+      expect(config.MEMPOOL).toStrictEqual({ AUDIT_GBT: false, POOLS_OVERLAY_PATH: '', ...fixture.MEMPOOL });
 
       expect(config.ELECTRUM).toStrictEqual(fixture.ELECTRUM);
 

@@ -53,3 +53,17 @@
 测试与发布／回滚操作见 [TASK-006](tasks/TASK-006.md)。查询减少是源代码计数与模拟零调用验证；没有生产性能基准，不声称已消除 120 秒 stall。其他远端 RPC（包括 getrawtransaction）仍可能慢。未推送、未部署、未重启生产服务。
 
 REQ-006 本地验证：新增后端 34/34，相关后端 273/273；完整后端 277 通过、2 个配置基线失败，原始 HEAD 已复现。Cypress 状态／交易／地图 28/28、前后端类型检查与构建通过；未提供本机 API 后端的在线 mainnet E2E 未完成。详细记录见 TASK-006。
+
+
+## REQ-007: Purity Signet
+
+Network-aware ASERT/profile validation and isolated Signet defaults are additive. Preserve the existing Mainnet JSON, DB and cache, including its 961636 explorer ASERT default and separate 961637 RDTS boundary. Configure Signet with the [example](../backend/mempool-config.purity-signet.example.json), a fresh mempool_signet DB, private cookie/socket authentication and separate writable directories. Do not reuse a Bitcoin Core Signet post-fork database/cache or external data replication source. Existing upstream production/mempool-config.signet.json contains Bitcoin Core Signet Esplora fallbacks and is not the Purity deployment example; use the new example. No dependency or lockfile change, new schema version or database migration is included.
+
+Signet block-summary classification uses version 4 so its coinbase exception is recomputed when summaries are enabled; Mainnet remains version 3 and needs no rescan. API consumers may ignore the optional activation-reference field; all existing fields/routes are retained. Frontend changes are limited to that optional type and a Signet-specific warning explaining historical structural flags. Existing network selection and reverse-proxy routing remain.
+
+Rollback: stop only the Signet service and restore its previous binary/config if required. The Mainnet process and data need no rollback. Do not attach a previous Bitcoin Core Signet database to Purity. Contabo deployment, actual DB authentication, Electrs synchronization and resource usage remain operational acceptance tasks; local tests are not deployment evidence. Validation and modified file list are in [TASK-007](tasks/TASK-007.md).
+
+
+## REQ-008: GitHub-hosted CI
+
+CI configuration moves from the unavailable upstream runner to GitHub-hosted Ubuntu. No application configuration, dependency lockfile, database migration or production rollout is required. See TASK-008 for local and Actions results.

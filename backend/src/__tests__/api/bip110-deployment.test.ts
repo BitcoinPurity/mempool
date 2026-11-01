@@ -67,10 +67,21 @@ describe('Purity permanent reduced-data status', () => {
     expect(reducedData.getStatus()).toBeNull();
   });
 
-  test.each(['testnet', 'testnet4', 'signet', 'regtest', 'liquid', 'liquidtestnet'] as const)(
+  test.each(['testnet', 'testnet4', 'regtest', 'liquid', 'liquidtestnet'] as const)(
     'does not invent permanent activation parameters for %s', network => {
       config.MEMPOOL.NETWORK = network;
       expect(reducedData.getStatus()).toBeNull();
     }
   );
+});
+
+
+describe('official Signet permanent RDTS', () => {
+  afterEach(() => { config.MEMPOOL.NETWORK = 'mainnet'; });
+  test.each([327021, 327022, 327023])('reports the correct boundary at %i', height => {
+    config.MEMPOOL.NETWORK = 'signet';
+    expect(reducedData.getStatus(height)).toMatchObject({
+      state: height >= 327022 ? 'active' : 'not_active', activationHeight: 327022, permanent: true,
+    });
+  });
 });

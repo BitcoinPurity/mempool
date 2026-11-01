@@ -1,3 +1,6 @@
+import path from 'path';
+import { PurityConfig, resolvePurityConfig } from './purity-config';
+
 const configFromFile = require(
     process.env.MEMPOOL_CONFIG_FILE ? process.env.MEMPOOL_CONFIG_FILE : '../mempool-config.json'
 );
@@ -175,12 +178,7 @@ interface IConfig {
     ENABLED: boolean;
     API: string;
   },
-  PURITY: {
-    /** Height at which Purity ASERT (aserti3-1d) applies to the next block. Must be > ASERT_ANCHOR_HEIGHT. */
-    ACTIVATION_HEIGHT: number;
-    /** ASERT anchor height (enforcement-chain block). */
-    ASERT_ANCHOR_HEIGHT: number;
-  },
+  PURITY: PurityConfig,
   PURITY_SEEDER: {
     API_URL: string;
     TRUSTED_PROXIES: string[];
@@ -360,10 +358,7 @@ const defaults: IConfig = {
     'ENABLED': false,
     'API': 'http://localhost:1234',
   },
-  'PURITY': {
-    'ACTIVATION_HEIGHT': 961636,
-    'ASERT_ANCHOR_HEIGHT': 961632,
-  },
+  'PURITY': resolvePurityConfig('mainnet'),
   'PURITY_SEEDER': {
     'API_URL': 'https://seeder.bitcoinpurity.org',
     'TRUSTED_PROXIES': ['127.0.0.1/32', '::1/128'],
@@ -395,7 +390,25 @@ class Config implements IConfig {
   PURITY_SEEDER: IConfig['PURITY_SEEDER'];
 
   constructor() {
+    const network = configFromFile.MEMPOOL?.NETWORK ?? defaults.MEMPOOL.NETWORK;
+    defaults.PURITY = resolvePurityConfig(network, configFromFile.PURITY);
+    if (network === 'signet') {
+      defaults.MEMPOOL.CACHE_DIR = './cache/signet';
+      defaults.MEMPOOL.HTTP_PORT = 8998;
+      defaults.DATABASE.DATABASE = 'mempool_signet';
+      defaults.CORE_RPC.PORT = 38332;
+      defaults.CORE_RPC.COOKIE_PATH = '/bitcoin/signet/.cookie';
+      defaults.SECOND_CORE_RPC.PORT = 38332;
+      defaults.SECOND_CORE_RPC.COOKIE_PATH = '/bitcoin/signet/.cookie';
+      defaults.ELECTRUM.PORT = 60601;
+      defaults.ELECTRUM.TLS_ENABLED = false;
+    }
     const configs = this.merge(configFromFile, defaults);
+    if (network === 'signet' &&
+        ((configs.DATABASE.ENABLED && configs.DATABASE.DATABASE === 'mempool') ||
+         (configs.MEMPOOL.CACHE_ENABLED && path.resolve(configs.MEMPOOL.CACHE_DIR) === path.resolve('./cache')))) {
+      throw new Error('Purity Signet requires a separate database and CACHE_DIR from Mainnet');
+    }
     this.MEMPOOL = configs.MEMPOOL;
     this.ESPLORA = configs.ESPLORA;
     this.ELECTRUM = configs.ELECTRUM;

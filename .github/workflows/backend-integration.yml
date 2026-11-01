@@ -2,10 +2,10 @@ name: Backend Integration Tests with MariaDB
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches:
-      - master
+      - main
 
 permissions:
   contents: read
@@ -17,18 +17,18 @@ jobs:
       matrix:
         node: ["24.13.0"]
       fail-fast: false
-    runs-on: mempool-ci
+    runs-on: ubuntu-24.04
 
     name: Backend Integration Tests - node ${{ matrix.node }}
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ${{ matrix.node }}/integration
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           registry-url: "https://registry.npmjs.org"
@@ -39,14 +39,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ matrix.node }}/integration/backend/node_modules
-          key: ${{ runner.os }}-backend-integration-node-${{ matrix.node }}-${{ hashFiles('${{ matrix.node }}/integration/backend/package-lock.json') }}
+          key: ${{ runner.os }}-backend-integration-node-${{ matrix.node }}-${{ hashFiles('**/backend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-backend-integration-node-${{ matrix.node }}-
             ${{ runner.os }}-backend-integration-
 
       - name: Read rust-toolchain file from repository
         id: gettoolchain
-        run: echo "::set-output name=toolchain::$(cat ./rust/gbt/rust-toolchain)"
+        run: echo "toolchain=$(cat ./rust/gbt/rust-toolchain)" >> "$GITHUB_OUTPUT"
         working-directory: ${{ matrix.node }}/integration
 
       - name: Cache Rust dependencies
@@ -58,7 +58,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             ${{ matrix.node }}/integration/rust/gbt/target/
-          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('${{ matrix.node }}/integration/rust/gbt/**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/rust/gbt/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-integration-
             ${{ runner.os }}-cargo-

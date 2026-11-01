@@ -16,6 +16,7 @@ TMP_AUDIT_DIR=""
 
 BACKEND_ALLOWED=(
   "mempool-backend"
+  "@parcel/watcher" # Existing jest-haste-map native watcher dependency.
   "fsevents"
   "unrs-resolver"
 )

@@ -592,6 +592,7 @@ export interface IDifficultyAdjustment {
   timeOffset: number;
   expectedBlocks: number;
   algorithm?: 'legacy' | 'asert';
+  nextBlockDifficultyIsReference?: boolean;
 }
 
 export interface IndexedDifficultyAdjustment {

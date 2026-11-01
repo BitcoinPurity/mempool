@@ -169,7 +169,7 @@ export class KnotsNodesChartComponent implements OnInit {
           itemStyle: { color: '#1E88E5' },
           label: { color: '#1E88E5' },
           tooltip: {
-            formatter: () => `<b style=\"color: white\">IPv4</b><br>${ipv4} nodes (${((ipv4/total)*100).toFixed(1)}%)`
+            formatter: () => `<b style="color: white">IPv4</b><br>${ipv4} nodes (${((ipv4/total)*100).toFixed(1)}%)`
           }
         },
         {
@@ -178,7 +178,7 @@ export class KnotsNodesChartComponent implements OnInit {
           itemStyle: { color: '#00ACC1' },
           label: { color: '#00ACC1' },
           tooltip: {
-            formatter: () => `<b style=\"color: white\">IPv6</b><br>${ipv6} nodes (${((ipv6/total)*100).toFixed(1)}%)`
+            formatter: () => `<b style="color: white">IPv6</b><br>${ipv6} nodes (${((ipv6/total)*100).toFixed(1)}%)`
           }
         },
         {
@@ -187,7 +187,7 @@ export class KnotsNodesChartComponent implements OnInit {
           itemStyle: { color: '#8E24AA' },
           label: { color: '#8E24AA' },
           tooltip: {
-            formatter: () => `<b style=\"color: white\">Tor</b><br>${tor} nodes (${((tor/total)*100).toFixed(1)}%)`
+            formatter: () => `<b style="color: white">Tor</b><br>${tor} nodes (${((tor/total)*100).toFixed(1)}%)`
           }
         }
       ];

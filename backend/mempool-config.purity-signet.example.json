@@ -1,0 +1,60 @@
+{
+  "MEMPOOL": {
+    "NETWORK": "signet",
+    "BACKEND": "electrum",
+    "USE_SECOND_NODE_FOR_MINFEE": false,
+    "HTTP_PORT": 8998,
+    "POLL_RATE_MS": 5000,
+    "CACHE_DIR": "/var/lib/mempool-signet/cache",
+    "SPAWN_CLUSTER_PROCS": 0,
+    "INDEXING_BLOCKS_AMOUNT": 2048,
+    "BLOCKS_SUMMARIES_INDEXING": false,
+    "GOGGLES_INDEXING": false,
+    "CPFP_INDEXING": false,
+    "CLUSTER_MEMPOOL": false,
+    "CLUSTER_MEMPOOL_INDEXING": false,
+    "RUST_GBT": false,
+    "AUTOMATIC_POOLS_UPDATE": false
+  },
+  "CORE_RPC": {
+    "HOST": "127.0.0.1",
+    "PORT": 38332,
+    "COOKIE": true,
+    "COOKIE_PATH": "/var/lib/bitcoin-purity/signet/.cookie",
+    "USERNAME": "",
+    "PASSWORD": ""
+  },
+  "ELECTRUM": {
+    "HOST": "127.0.0.1",
+    "PORT": 60601,
+    "TLS_ENABLED": false
+  },
+  "DATABASE": {
+    "ENABLED": true,
+    "HOST": "127.0.0.1",
+    "SOCKET": "/run/mysqld/mysqld.sock",
+    "DATABASE": "mempool_signet",
+    "USERNAME": "mempool_signet",
+    "PASSWORD": "",
+    "PID_DIR": "/run/mempool-signet",
+    "POOL_SIZE": 10
+  },
+  "PURITY": {
+    "ACTIVATION_HEIGHT": 327022,
+    "ACTIVATION_HASH": "00000004b42cf68f94be9dd89b65e44cae31eee382137221b83b5b261d3e3c20",
+    "ASERT_ANCHOR_HEIGHT": 327017,
+    "ASERT_ANCHOR_BITS": 487935899,
+    "ASERT_ANCHOR_PARENT_TIME": 1792401042,
+    "ASERT_HALF_LIFE": 86400,
+    "POW_TARGET_SPACING": 600,
+    "POW_LIMIT": "00000377ae000000000000000000000000000000000000000000000000000000"
+  },
+  "LIGHTNING": { "ENABLED": false },
+  "FIAT_PRICE": { "ENABLED": false },
+  "REDIS": { "ENABLED": false },
+  "SYSLOG": { "ENABLED": false },
+  "REPLICATION": { "ENABLED": false },
+  "MEMPOOL_SERVICES": { "API": "", "ACCELERATIONS": false },
+  "STRATUM": { "ENABLED": false },
+  "WALLETS": { "ENABLED": false }
+}

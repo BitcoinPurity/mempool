@@ -3,6 +3,7 @@ import { Application, Request, Response, NextFunction } from 'express';
 import * as http from 'http';
 import * as WebSocket from 'ws';
 import bitcoinApi from './api/bitcoin/bitcoin-api-factory';
+import bitcoinClient from './api/bitcoin/bitcoin-client';
 import cluster from 'cluster';
 import DB from './database';
 import config from './config';
@@ -50,8 +51,23 @@ import mempoolBlocks from './api/mempool-blocks';
 import walletApi from './api/services/wallets';
 import stratumApi from './api/services/stratum';
 import purityNodesRoutes from './api/purity/purity-nodes.routes';
+import { PuritySignetValidator } from './api/purity-signet';
+import ElectrumApi from './api/bitcoin/electrum-api';
+import { OFFICIAL_SIGNET } from './purity-config';
 
 class Server {
+  private signetValidator = config.MEMPOOL.NETWORK === 'signet' ? new PuritySignetValidator(bitcoinClient, /** @asyncUnsafe */ async () => {
+    if (config.MEMPOOL.BACKEND === 'electrum') {
+      return (bitcoinApi as ElectrumApi).$validateSignetChain();
+    }
+    if (await bitcoinApi.$getBlockHeightTip() < OFFICIAL_SIGNET.ACTIVATION_HEIGHT) {
+      return 'pending';
+    }
+    if (await bitcoinApi.$getBlockHash(OFFICIAL_SIGNET.ACTIVATION_HEIGHT) !== OFFICIAL_SIGNET.ACTIVATION_HASH) {
+      throw new Error('Indexer Purity Signet activation hash mismatch');
+    }
+    return 'verified';
+  }) : null;
   private wss: WebSocket.Server | undefined;
   private wssUnixSocket: WebSocket.Server | undefined;
   private server: http.Server | undefined;
@@ -69,7 +85,10 @@ class Server {
     this.app = express();
 
     if (!config.MEMPOOL.SPAWN_CLUSTER_PROCS) {
-      void this.startServer();
+      this.startServer().catch(error => {
+        logger.err(`Server startup failed: ${error instanceof Error ? error.message : error}`);
+        this.forceExit('startup', 1);
+      });
       return;
     }
 
@@ -93,11 +112,14 @@ class Server {
         }, 10000);
       });
     } else {
-      void this.startServer(true);
+      this.startServer(true).catch(error => {
+        logger.err(`Server startup failed: ${error instanceof Error ? error.message : error}`);
+        this.forceExit('startup', 1);
+      });
     }
   }
 
-  /** @asyncSafe */
+  /** @asyncUnsafe */
   async startServer(worker = false): Promise<void> {
     logger.notice(`Starting Mempool Server${worker ? ' (worker)' : ''}... (${backendInfo.getShortCommitHash()})`);
 
@@ -122,6 +144,9 @@ class Server {
       bitcoinApi.startHealthChecks();
     }
 
+    // @asyncUnsafe Startup must abort before loading data if the chain check fails.
+    await this.signetValidator?.validate();
+
     if (config.DATABASE.ENABLED) {
       DB.getPidLock();
 
@@ -137,6 +162,13 @@ class Server {
     }
 
     this.app
+      .use((req: Request, res: Response, next: NextFunction) => {
+        if (this.signetValidator && !this.signetValidator.ready) {
+          res.status(503).send('Purity Signet chain validation unavailable');
+          return;
+        }
+        next();
+      })
       .use((req: Request, res: Response, next: NextFunction) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -155,10 +187,12 @@ class Server {
     }
 
     this.server = http.createServer(this.app);
-    this.wss = new WebSocket.Server({ server: this.server, maxPayload: websocketHandler.MAX_MESSAGE_SIZE });
+    this.wss = new WebSocket.Server({ server: this.server, maxPayload: websocketHandler.MAX_MESSAGE_SIZE,
+      verifyClient: () => !this.signetValidator || this.signetValidator.ready });
     if (config.MEMPOOL.UNIX_SOCKET_PATH) {
       this.serverUnixSocket = http.createServer(this.app);
-      this.wssUnixSocket = new WebSocket.Server({ server: this.serverUnixSocket, maxPayload: websocketHandler.MAX_MESSAGE_SIZE });
+      this.wssUnixSocket = new WebSocket.Server({ server: this.serverUnixSocket, maxPayload: websocketHandler.MAX_MESSAGE_SIZE,
+        verifyClient: () => !this.signetValidator || this.signetValidator.ready });
     }
 
     this.setUpWebsocketHandling();
@@ -254,6 +288,7 @@ class Server {
   async runMainUpdateLoop(): Promise<void> {
     const start = Date.now();
     try {
+      await this.signetValidator?.validate();
       try {
         await memPool.$updateMemPoolInfo();
       } catch (e) {
@@ -288,6 +323,11 @@ class Server {
       setTimeout(this.runMainUpdateLoop.bind(this), numHandledBlocks > 0 ? 0 : remainingTime);
       this.backendRetryCount = 0;
     } catch (e: any) {
+      if (this.signetValidator && !this.signetValidator.ready) {
+        for (const server of [this.wss, this.wssUnixSocket]) {
+          server?.clients.forEach(client => client.close(1013, 'Purity Signet chain validation unavailable'));
+        }
+      }
       this.backendRetryCount++;
       let loggerMsg = `Exception in runMainUpdateLoop() (count: ${this.backendRetryCount}). Retrying in ${this.currentBackendRetryInterval} sec.`;
       loggerMsg += ` Reason: ${(e instanceof Error ? e.message : e)}.`;

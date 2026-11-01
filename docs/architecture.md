@@ -37,3 +37,17 @@ Mempool 按同一输入快照计算缺失／过期数量；初始 info、稳定�
 WebsocketHandler 初始快照构建改为同步；新区块在更新 `/api/v1/init-data` 共享快照时生成状态，并向 `want-blocks` 客户端发送相同状态。保留 wire 字段名 `bip110deployment`，前端经 WebsocketService → `StateService.purityReducedData$` → 原组件显示永久规则。旧组件在基线未挂载；本次在主网首页费用／难度卡之后挂载紧凑状态卡。
 
 历史分类仍由 Common 的交易标志检测、Blocks 的摘要／计数更新、原历史分类扫描及前端 Bip110Service／区块徽章处理。组件继续读取 `loadingIndicators['bip110-scan']`；这与已删除的临时部署周期扫描无关。ASERT 配置、版本数据、数据库结构与历史记录保持不变。
+
+
+## REQ-007: Network consensus and Signet identity
+
+`backend/src/purity-config.ts` resolves and validates the official Signet profile before merging generic defaults; existing Mainnet height overrides remain. The pure ASERT API retains its signatures and Mainnet default powLimit. Signet callers supply the wider powLimit and use the fixed anchor parent time. Signet difficulty percentages use compact-rounded targets, and the activation forecast is explicitly marked as a reference. Other Bitcoin test networks no longer accidentally activate Purity ASERT at the Mainnet height.
+
+`PuritySignetValidator` gates startup before database/cache initialization and HTTP/WebSocket listening. Every update-loop iteration rechecks RPC chain/activation hash and the indexer's actual activation header. Below activation, each source is pending and IBD may continue. A later validation failure stops ingestion, gates HTTP with 503 and closes WebSockets; retries can recover. Electrum checks wait for initial protocol negotiation and have a bounded 30-second timeout. Existing in-flight operations are not cancelled; validation is periodic, not atomic with every read.
+
+Mainnet keeps its cache/database/port defaults. Signet defaults to cache/signet, mempool_signet and port 8998, and rejects the standard Mainnet cache/database collision. PID locks already include the database name; Redis already assigns separate network DBs. Operators must use separate custom writable paths, sockets and fresh databases. No schema migration is added. RDTS status includes Signet, historical flags remain hypothetical, and only Signet's selected post-activation coinbase commitment gets the 195-byte structural-classification exception. Mainnet classification version and behavior remain unchanged. See [operations](purity-signet.md) and [TASK-007](tasks/TASK-007.md).
+
+
+## REQ-008: GitHub-hosted CI
+
+Hosted CI uses fresh Ubuntu runners; the Signet suite has no live-node dependency. Existing build, lint, unit, MariaDB, Docker and browser checks remain. Workflow contract tests check runner and event configuration.

@@ -89,7 +89,7 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
     private apiService: ApiService,
     private websocketService: WebsocketService,
     private seoService: SeoService,
-    @Inject(PLATFORM_ID) private platformId: Object,
+    @Inject(PLATFORM_ID) private platformId: object,
   ) {
     this.webGlEnabled = this.stateService.isBrowser && detectWebGL();
   }

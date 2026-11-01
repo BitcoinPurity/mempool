@@ -104,11 +104,10 @@ export function calculateAsert(
   if (shiftAmount <= 0n) {
     nextTarget >>= -shiftAmount;
   } else {
-    const shifted = nextTarget << shiftAmount;
-    if ((shifted >> shiftAmount) !== nextTarget) {
+    if (shiftAmount >= 256n || nextTarget > (powLimit >> shiftAmount)) {
       nextTarget = powLimit;
     } else {
-      nextTarget = shifted;
+      nextTarget <<= shiftAmount;
     }
   }
 
@@ -118,6 +117,23 @@ export function calculateAsert(
     nextTarget = powLimit;
   }
   return nextTarget;
+}
+
+/** Mirrors CheckDifficultyBits, not proof of work or full block validity. */
+export function checkDifficultyBits(
+  claimedBits: number, requiredBits: number, height: number, activationHeight: number,
+  powLimit: bigint = MAINNET_POW_LIMIT,
+): boolean {
+  if (height !== activationHeight) {
+    return claimedBits === requiredBits;
+  }
+  try {
+    const claimed = bitsToTarget(claimedBits);
+    const required = bitsToTarget(requiredBits);
+    return claimed > 0n && required > 0n && claimed <= powLimit && required <= powLimit && claimed <= required;
+  } catch {
+    return false;
+  }
 }
 
 export function getNextAsertTarget(

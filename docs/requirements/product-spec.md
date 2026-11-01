@@ -41,3 +41,15 @@ JsonRPC 请求总超时从请求发起持续到响应体完整结束，持续收
 前后端使用精简 `PurityReducedDataStatus`，保留 `bip110deployment` 传输字段名。状态只根据主网及内存高度同步计算，无缓存、轮询、RPC、Electrum、SQL 或历史扫描；初始数据与订阅区块的实时客户端都接收状态。保留区块、mempool、费用和难度等现有内容。
 
 删除临时部署的阈值、锁定、强制投票、到期倒计时和关联类型／样式。历史违规分类扫描的进度条、检测、计数与权重、徽章、版本位记录和持久化结果均保持原有行为。永久执行状态不用于重写历史分类，也不表示所有历史违规都是当时的共识无效交易。
+
+
+## REQ-007: Purity Signet backend support
+
+Support independent Mainnet (8999 / mempool) and official Purity Signet (8998 / mempool_signet) processes from one build. Preserve Mainnet ASERT defaults and existing public APIs. Centralize and validate network consensus parameters; Signet must use activation 327022, anchor 327017 / 0x1d154f9b / parent time 1792401042, 86400-second half-life, 600-second spacing and its 234-bit powLimit. Treat the activation block as accepting a target no easier than the calculated compact target, rather than requiring equality. Retain legacy difficulty before activation.
+
+Identify Signet by the official activation hash, including a pending identity state below activation without blocking IBD. Validate both RPC and Electrum sources; isolate writable cache, PID and database state. Review historical RDTS classification, Signet coinbase commitments, signaling, difficulty history, hashrate and rewards. Provide a lightweight production example and deployment instructions, deterministic consensus and isolation regression tests, builds and a dedicated local feature-branch commit. No consensus-node edits, dependency upgrades, schema migrations, merge or deployment.
+
+
+## REQ-008: GitHub-hosted CI
+
+Run automatic CI on GitHub-hosted Ubuntu runners for main pushes and PR updates. Keep backend/frontend builds, lint, unit/integration tests and browser coverage, explicitly run the deterministic Signet regression suite, and remove dependence on upstream self-hosted runners and Cypress Cloud credentials. Repair concrete existing test/lint blockers without changing application behavior or upgrading dependencies. Commit and push to PR #3, then inspect real Actions outcomes; no merge or deployment.

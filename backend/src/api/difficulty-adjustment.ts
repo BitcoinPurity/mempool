@@ -2,11 +2,11 @@ import config from '../config';
 import { IDifficultyAdjustment } from '../mempool.interfaces';
 import {
   ASERT_HALF_LIFE,
-  DEFAULT_PURITY_ACTIVATION_HEIGHT,
-  MAINNET_ASERT_ANCHOR_HEIGHT,
   POW_TARGET_SPACING,
   difficultyChangeFromTarget,
   getNextAsertTarget,
+  bitsToTarget,
+  targetToBits,
 } from './asert';
 import logger from '../logger';
 
@@ -24,6 +24,7 @@ export interface DifficultyAdjustment {
   timeOffset: number;            // (Testnet) Time since last block (cap @ 20min) in ms
   expectedBlocks: number;         // Block count
   algorithm?: 'legacy' | 'asert';
+  nextBlockDifficultyIsReference?: boolean;
 }
 
 /** Half-life window in blocks (24h / 10min) used for ASERT UI progress. */
@@ -246,15 +247,15 @@ export function calcAsertDifficultyAdjustment(
 }
 
 export function getPurityActivationHeight(): number {
-  return config.PURITY?.ACTIVATION_HEIGHT ?? DEFAULT_PURITY_ACTIVATION_HEIGHT;
+  return config.PURITY.ACTIVATION_HEIGHT;
 }
 
 export function getAsertAnchorHeight(): number {
-  return config.PURITY?.ASERT_ANCHOR_HEIGHT ?? MAINNET_ASERT_ANCHOR_HEIGHT;
+  return config.PURITY.ASERT_ANCHOR_HEIGHT;
 }
 
 export function isAsertActive(nextBlockHeight: number): boolean {
-  if (['liquid', 'liquidtestnet'].includes(config.MEMPOOL.NETWORK)) {
+  if (!['mainnet', 'signet'].includes(config.MEMPOOL.NETWORK)) {
     return false;
   }
   return nextBlockHeight >= getPurityActivationHeight();
@@ -288,8 +289,13 @@ class DifficultyAdjustmentApi {
       if (!tipBits) {
         return null;
       }
-      const nextTarget = getNextAsertTarget(anchor, tipHeight, latestBlock.timestamp);
-      return calcAsertDifficultyAdjustment(
+      const calculatedTarget = getNextAsertTarget(
+        anchor, tipHeight, latestBlock.timestamp, BigInt('0x' + config.PURITY.POW_LIMIT),
+        config.PURITY.ASERT_HALF_LIFE, config.PURITY.POW_TARGET_SPACING,
+      );
+      const nextTarget = config.MEMPOOL.NETWORK === 'signet'
+        ? bitsToTarget(targetToBits(calculatedTarget)) : calculatedTarget;
+      const adjustment = calcAsertDifficultyAdjustment(
         nowSeconds,
         tipHeight,
         latestBlock.timestamp,
@@ -300,6 +306,10 @@ class DifficultyAdjustmentApi {
         nextTarget,
         config.MEMPOOL.NETWORK,
       );
+      if (config.MEMPOOL.NETWORK === 'signet' && tipHeight + 1 === getPurityActivationHeight()) {
+        adjustment.nextBlockDifficultyIsReference = true;
+      }
+      return adjustment;
     }
 
     const DATime = blocks.getLastDifficultyAdjustmentTime();

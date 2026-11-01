@@ -86,3 +86,8 @@ Mempool can be installed in other ways too, but we only recommend doing so if yo
 - See the [`docker/`](./docker/) directory for instructions on deploying Mempool with Docker.
 - See the [`backend/`](./backend/) and [`frontend/`](./frontend/) directories for manual install instructions oriented for developers.
 - See the [`production/`](./production/) directory for guidance on setting up a more serious Mempool instance designed for high performance at scale.
+
+
+## Bitcoin Purity Mainnet and Signet
+
+Run independent Mainnet and official Purity Signet backends from the same build using separate `MEMPOOL_CONFIG_FILE` paths, ports, databases and caches. Mainnet defaults remain unchanged. See the [configuration and Contabo deployment guide](docs/purity-signet.md), [Signet example](backend/mempool-config.purity-signet.example.json), and [consensus assessment / test results](docs/tasks/TASK-007.md).

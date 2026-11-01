@@ -51,3 +51,15 @@
 - 保留历史违规扫描进度、违规检测、计数／权重、分类、徽章、版本位记录及数据库数据，区分共识执行与浏览器侧分类。
 - 测试先行，覆盖零 I/O、激活边界、永久性、WebSocket 初始／新区块数据与前端渲染，完成相关构建和回归。
 - 不改共识、ASERT、数据库、RPC 超时、依赖版本或生产服务；未经批准不推送、不部署。
+
+
+## REQ-007: Purity Signet backend support
+
+Support independent Mainnet (8999 / mempool) and official Purity Signet (8998 / mempool_signet) processes from one build. Preserve Mainnet ASERT defaults and existing public APIs. Centralize and validate network consensus parameters; Signet must use activation 327022, anchor 327017 / 0x1d154f9b / parent time 1792401042, 86400-second half-life, 600-second spacing and its 234-bit powLimit. Treat the activation block as accepting a target no easier than the calculated compact target, rather than requiring equality. Retain legacy difficulty before activation.
+
+Identify Signet by the official activation hash, including a pending identity state below activation without blocking IBD. Validate both RPC and Electrum sources; isolate writable cache, PID and database state. Review historical RDTS classification, Signet coinbase commitments, signaling, difficulty history, hashrate and rewards. Provide a lightweight production example and deployment instructions, deterministic consensus and isolation regression tests, builds and a dedicated local feature-branch commit. No consensus-node edits, dependency upgrades, schema migrations, merge or deployment.
+
+
+## REQ-008: GitHub-hosted CI
+
+Run automatic CI on GitHub-hosted Ubuntu runners for main pushes and PR updates. Keep backend/frontend builds, lint, unit/integration tests and browser coverage, explicitly run the deterministic Signet regression suite, and remove dependence on upstream self-hosted runners and Cypress Cloud credentials. Repair concrete existing test/lint blockers without changing application behavior or upgrading dependencies. Commit and push to PR #3, then inspect real Actions outcomes; no merge or deployment.

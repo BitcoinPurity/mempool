@@ -33,6 +33,7 @@
     "reindex-updated-pools": "npm run start-production --update-pools",
     "reindex-all-blocks": "npm run start-production --update-pools --reindex-blocks",
     "test": "./node_modules/.bin/jest --coverage",
+    "test:signet": "jest --runInBand --coverage=false asert.test.ts difficulty-adjustment.test.ts purity-config.test.ts purity-signet.test.ts electrum-api.test.ts bip110-deployment.test.ts bip110-classification.test.ts",
     "test:ci": "CI=true ./node_modules/.bin/jest --coverage",
     "test:integration": "./node_modules/.bin/jest --config=jest.integration.config.ts --runInBand --forceExit",
     "test:with-db": "bash ./scripts/test-with-db.sh",
