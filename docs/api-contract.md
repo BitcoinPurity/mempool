@@ -1,5 +1,11 @@
 # API 契约
 
+## REQ-010：Health 与 RPC HTTP 错误
+
+Health 继续从区块接口 `extras.matchRate` 读取。`audit-summary` 没有完整模板时仍可返回 404，详情页不再依赖该接口显示 Health，不改变完整审计响应结构。
+
+内部 RPC 非 JSON、非 200 响应改为 `code: EHTTP`、`statusCode: <HTTP 状态>`；503 正文准确为 `Work queue depth exceeded` 时保留此固定原因，其余正文不进入错误消息。JSON-RPC 错误码、成功结果、认证和超时不变。
+
 REQ-002 的前端 `PURITY_NODES_MAP_ENABLED` 仅控制首页展示与组件请求，以下后端接口及认证、限流行为保持不变。
 
 ## `GET /api/v1/purity/nodes`

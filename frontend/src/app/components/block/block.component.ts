@@ -330,7 +330,7 @@ export class BlockComponent implements OnInit, OnDestroy {
           !this.isAuditAvailableFromBlockHeight(block.height) ? of(null) : this.apiService.getBlockAudit$(block.id)
             .pipe(
               catchError((err) => {
-                this.overviewError = err;
+                if (err.status !== 404) this.overviewError = err;
                 return of(null);
               })
             ),
@@ -1042,6 +1042,11 @@ export class BlockComponent implements OnInit, OnDestroy {
         }
     }
     return true;
+  }
+
+  get blockHealth(): number | null {
+    return this.block?.extras?.matchRate ??
+      (this.blockAudit?.id === this.block?.id ? this.blockAudit?.matchRate ?? null : null);
   }
 
   getMinBlockFee(block: BlockExtended): number {

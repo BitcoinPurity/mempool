@@ -1,5 +1,13 @@
 # REQ-001 迁移分析
 
+## REQ-010：轻量 Health 缺失和 RPC 重建负载
+
+线上 971905 的区块接口可返回 matchRate=100，但完整审计接口因没有模板返回 404。详情页原来只读审计分数，现改用区块 extras，并将可选审计 404 视为无模板。无需开启 AUDIT_GBT，也不更改数据库审计语义。
+
+摘要版本仍为 6，不重扫或变更 schema。增加进程内历史摘要队列和同区块请求共享，当前缓存与新区块 CPFP 路径不排队。Core RPC 503 可能由工作队列耗尽或代理故障引起，客户端现在准确记录 HTTP 状态；不自动重试、提高节点队列或修改节点配置。不能仅凭本地测试声称生产负载已恢复。
+
+前后端修复需按原发布流程部署。内部依赖旧伪造 -32602 处理 HTTP 故障的调用方应改用 EHTTP/statusCode。验证与限制见 TASK-010；未操作生产服务。
+
 首页移除 Ocean／Knots 卡片，添加整行 Purity 地图。新增两条本项目 API、配置及本地地理库读取，不需要数据库迁移或 Seeder 修改。
 
 部署准备：后端设置 `PURITY_SEEDER_API_TOKEN`；`PURITY_SEEDER.API_URL` 默认 `https://seeder.bitcoinpurity.org`；代理来源通过 `PURITY_SEEDER.TRUSTED_PROXIES` 明确配置；默认信任 loopback。提供 `MAXMIND.GEOLITE2_CITY` 文件，Docker 部署通过只读卷挂载。API 不要求启用 Lightning 或 ASN 数据库。

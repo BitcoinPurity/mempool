@@ -130,8 +130,10 @@ JsonRPC.prototype.call = function (method, params) {
           }
 
           if (response.statusCode !== 200) {
-            err = new Error('Invalid params, response status code: ' + response.statusCode);
-            err.code = -32602;
+            const reason = buffer.trim() === 'Work queue depth exceeded' ? ': Work queue depth exceeded' : '';
+            err = new Error('RPC HTTP ' + response.statusCode + reason);
+            err.code = 'EHTTP';
+            err.statusCode = response.statusCode;
             reject(err);
           } else {
             err = new Error('Problem parsing JSON response from server');

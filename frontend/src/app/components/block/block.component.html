@@ -62,23 +62,18 @@
                 <td i18n="block.weight">Weight</td>
                 <td [innerHTML]="'&lrm;' + (block.weight | wuBytes: 2)"></td>
               </tr>
-              <tr *ngIf="auditAvailable">
+              <tr *ngIf="auditSupported" data-cy="block-health">
                 <td><ng-container i18n="latest-blocks.health">Health</ng-container></td>
                 <td>
                   <span
                     class="health-badge badge"
-                    [class.bg-success]="blockAudit?.matchRate >= 99"
-                    [class.bg-warning]="blockAudit?.matchRate >= 75 && blockAudit?.matchRate < 99"
-                    [class.bg-danger]="blockAudit?.matchRate < 75"
-                    *ngIf="blockAudit?.matchRate != null && blockAudit?.id === block.id; else nullHealth"
-                  >{{ blockAudit?.matchRate }}%</span>
+                    [class.bg-success]="blockHealth >= 99"
+                    [class.bg-warning]="blockHealth >= 75 && blockHealth < 99"
+                    [class.bg-danger]="blockHealth < 75"
+                    *ngIf="blockHealth != null; else nullHealth"
+                  >{{ blockHealth }}%</span>
                   <ng-template #nullHealth>
-                    <ng-container *ngIf="!isLoadingOverview && blockAudit?.id === block.id; else loadingHealth">
                       <span class="health-badge badge bg-secondary" i18n="unknown">Unknown</span>
-                    </ng-container>
-                  </ng-template>
-                  <ng-template #loadingHealth>
-                    <span class="skeleton-loader" style="max-width: 60px"></span>
                   </ng-template>
                 </td>
               </tr>

@@ -102,4 +102,24 @@ describe('JsonRPC HTTP response lifecycle', () => {
 
     await expect(rpc.call('getrawmempool', [true])).rejects.toMatchObject({ code: 'ETIMEDOUT' });
   });
+  test('reports a Core work queue rejection as an HTTP failure, not invalid params', async () => {
+    handleRequest = (_request, response) => {
+      response.writeHead(503, { 'Content-Type': 'text/plain' });
+      response.end('Work queue depth exceeded');
+    };
+    const rpc = new JsonRPC({ host: '127.0.0.1', port, timeout: 1000 });
+    await expect(rpc.call('getblock', ['hash', 2])).rejects.toMatchObject({
+      code: 'EHTTP', statusCode: 503, message: 'RPC HTTP 503: Work queue depth exceeded',
+    });
+  });
+  test('does not expose arbitrary proxy response bodies in HTTP error messages', async () => {
+    handleRequest = (_request, response) => {
+      response.writeHead(502);
+      response.end('upstream private diagnostic token=secret');
+    };
+    const rpc = new JsonRPC({ host: '127.0.0.1', port, timeout: 1000 });
+    await expect(rpc.call('getblock', ['hash', 2])).rejects.toMatchObject({
+      code: 'EHTTP', statusCode: 502, message: 'RPC HTTP 502',
+    });
+  });
 });

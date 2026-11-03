@@ -42,9 +42,12 @@ import mempool from './mempool';
 import CpfpRepository from '../repositories/CpfpRepository';
 import { parseDATUMTemplateCreator } from '../utils/bitcoin-script';
 import database from '../database';
+import pLimit from '../utils/p-limit';
 import { getBlockFirstSeenFromLogs, getOldestLogTimestampFromLogs, scanLogsForBlocksFirstSeen } from '../utils/file-read';
 
 class Blocks {
+  private summaryRebuilds = new Map<string, Promise<TransactionClassified[]>>();
+  private limitSummaryRebuild = pLimit(1);
   private blocks: BlockExtended[] = [];
   private blockSummaries: BlockSummary[] = [];
   private currentBlockHeight = 0;
@@ -1805,6 +1808,31 @@ class Blocks {
   /** @asyncUnsafe */
   public async $getStrippedBlockTransactions(hash: string, skipMemoryCache = false,
     skipDBLookup = false, cpfpSummary?: CpfpSummary, blockHeight?: number): Promise<TransactionClassified[]>
+  {
+    if (cpfpSummary) {
+      return this.$loadStrippedBlockTransactions(hash, skipMemoryCache, skipDBLookup, cpfpSummary, blockHeight);
+    }
+    if (!skipMemoryCache) {
+      const cached = this.blockSummaries.find(summary => summary.id === hash);
+      if (cached?.transactions?.length && (cached.version ?? 0) >= Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION) {
+        return cached.transactions;
+      }
+    }
+    const pending = this.summaryRebuilds.get(hash);
+    if (pending) return pending;
+    const rebuild = this.limitSummaryRebuild(() =>
+      this.$loadStrippedBlockTransactions(hash, skipMemoryCache, skipDBLookup, undefined, blockHeight));
+    this.summaryRebuilds.set(hash, rebuild);
+    try {
+      return await rebuild;
+    } finally {
+      this.summaryRebuilds.delete(hash);
+    }
+  }
+
+  /** @asyncUnsafe */
+  private async $loadStrippedBlockTransactions(hash: string, skipMemoryCache: boolean,
+    skipDBLookup: boolean, cpfpSummary?: CpfpSummary, blockHeight?: number): Promise<TransactionClassified[]>
   {
     const minClassificationVersion = Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION;
 
