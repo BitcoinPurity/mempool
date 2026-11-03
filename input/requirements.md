@@ -63,3 +63,12 @@ Identify Signet by the official activation hash, including a pending identity st
 ## REQ-008: GitHub-hosted CI
 
 Run automatic CI on GitHub-hosted Ubuntu runners for main pushes and PR updates. Keep backend/frontend builds, lint, unit/integration tests and browser coverage, explicitly run the deterministic Signet regression suite, and remove dependence on upstream self-hosted runners and Cypress Cloud credentials. Repair concrete existing test/lint blockers without changing application behavior or upgrading dependencies. Commit and push to PR #3, then inspect real Actions outcomes; no merge or deployment.
+
+## REQ-009：区块 Health 数据交易分类
+
+- 单个 OP_RETURN 输出携带的数据不超过 80 字节时，不因 OP_RETURN 本身归为垃圾交易；按数据载荷计算，不包含操作码及长度前缀。
+- 含 OP_RETURN 的交易仅在任一 OP_RETURN 的累计数据载荷超过 80 字节或 OP_RETURN 输出超过一个时命中 OP_RETURN 垃圾规则。输入与输出地址相同、自转账和地址复用本身不构成垃圾交易；撤销此前的地址集合相同判定。
+- 增加 OP_DROP 数据检测：脚本内直接压入后立即 OP_DROP，或连续两次压入后 OP_2DROP，整笔交易累计丢弃数据超过 80 字节时归为垃圾。正常 CLTV/CSV 参数清理不计入，不将数据内容中的操作码字节当成脚本执行。
+- 检查交易中可识别的裸脚本、scriptSig、P2SH redeemScript、P2WSH witnessScript 和 Taproot 叶脚本；隐藏脚本未揭示前不猜测。此检测是结构分类，不宣称完整跟踪执行路径或识别所有数据嵌入方式。
+- 完整交易及分类摘要的 Health 口径一致，保留普通 OP_RETURN 类型标签，其他垃圾类型及 Coinbase 权重豁免不变；更新分类版本使旧摘要可重建。
+- 测试先行，验证长度边界、多输出、地址集合、OP_DROP/OP_2DROP、时间锁及缓存路径。仅修改本项目，不推送、不部署、不执行生产数据重算。

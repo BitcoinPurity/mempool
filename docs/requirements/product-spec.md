@@ -53,3 +53,11 @@ Identify Signet by the official activation hash, including a pending identity st
 ## REQ-008: GitHub-hosted CI
 
 Run automatic CI on GitHub-hosted Ubuntu runners for main pushes and PR updates. Keep backend/frontend builds, lint, unit/integration tests and browser coverage, explicitly run the deterministic Signet regression suite, and remove dependence on upstream self-hosted runners and Cypress Cloud credentials. Repair concrete existing test/lint blockers without changing application behavior or upgrading dependencies. Commit and push to PR #3, then inspect real Actions outcomes; no merge or deployment.
+
+## REQ-009：区块 Health 数据交易分类
+
+普通单个 OP_RETURN 保留类型标签，但不再直接降低 Health。含 OP_RETURN 的交易在任一输出数据载荷（所有 push 的数据字节之和，不包含操作码和长度前缀）超过 80 字节或 OP_RETURN 输出数量大于一时才命中此类垃圾规则。输入与输出地址相同、自转账和地址复用本身不构成垃圾交易，含正常 OP_RETURN 的同址转账也不扣分。
+
+OP_DROP 检测统计脚本中直接压入并立即由 OP_DROP 丢弃的数据，以及连续两次压入并立即由 OP_2DROP 丢弃的数据；全交易累计超过 80 字节时标记。CLTV/CSV 检查后的参数清理不计入。解析须区分真正操作码与 push 内容，并避免重复计数。检测可见的输出脚本、scriptSig、P2SH redeemScript、原生／嵌套 P2WSH witnessScript 和 Taproot 叶脚本；不把签名、普通 witness 参数或未揭示的哈希承诺当成脚本。该规则只识别结构模式，不完整模拟分支执行或数据流。
+
+完整交易与分类摘要使用同一垃圾掩码，按整笔交易权重计算，Coinbase 豁免不变。其他垃圾类型和 BIP110 结构规则不变。摘要分类版本升级，旧摘要通过现有重建流程刷新；本次不执行生产历史数据重算、推送或部署。

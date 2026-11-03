@@ -51,3 +51,11 @@ Mainnet keeps its cache/database/port defaults. Signet defaults to cache/signet,
 ## REQ-008: GitHub-hosted CI
 
 Hosted CI uses fresh Ubuntu runners; the Signet suite has no live-node dependency. Existing build, lint, unit, MariaDB, Docker and browser checks remain. Workflow contract tests check runner and event configuration.
+
+## REQ-009：数据交易分类与 Health
+
+`Common.getDataCarrierFlags` 在静态分类缓存返回前重新计算 OP_RETURN 垃圾条件及 OP_DROP 数据模式，因此从旧缓存恢复的普通 OP_RETURN 不会沿用 `spam=true`。`getScriptDataUsage` 使用 bitcoinjs 脚本解码区分 push 内容与操作码，累计载荷和直接 DROP／2DROP 消耗的数据。P2SH 使用 scriptSig 最后一个 push 恢复 redeemScript；嵌套 P2WSH 只扫描 `0020` witness program 对应的 witnessScript；Taproot 只扫描已揭示、具有已知叶版本与正确控制块长度的叶脚本。未知前序输出时只从明确的 Taproot witness 结构尝试恢复，不把其他 witness 内容猜作脚本。
+
+普通 `op_return` 标签与 `op_return_spam` 分离，新增 `op_drop` 标签；前端将普通 OP_RETURN 归于 Features，Spam 筛选使用新标签。后端 `SPAM_FLAGS` 是完整交易布尔值和分类摘要 Health 的共同依据。其他垃圾类型及 BIP110 检测不变。
+
+摘要分类版本统一为 6，撤销版本 5 的同址 OP_RETURN 垃圾判定；只按 OP_RETURN 数据长度和输出数量判断该类别。恢复有效摘要时同步内存 Health，过期摘要清空旧分数；区块详情和列表在需要时重新分类。按需重建及现有 Esplora 后台分类流程更新 `blocks_audits.match_rate`，保留模板、交易审计列表和预期费用／权重。先更新已有分数，再保存新摘要版本，避免分数写入失败后因摘要已升级而无法重试。不增加数据库 schema 或启动时全量扫描。

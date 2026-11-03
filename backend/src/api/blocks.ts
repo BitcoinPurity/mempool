@@ -114,6 +114,7 @@ class Blocks {
       } else if (summary?.id) {
         const block = this.blocks.find(b => b.id === summary.id);
         if (block?.extras) {
+          block.extras.matchRate = null;
           // Avoid showing stale radioactive badges until the summary is rebuilt.
           block.extras.bip110ViolationCount = 0;
           block.extras.bip110ViolationWeight = 0;
@@ -155,6 +156,39 @@ class Blocks {
     }
     block.extras.bip110ViolationCount = count;
     block.extras.bip110ViolationWeight = weight;
+    if (config.MEMPOOL.AUDIT) {
+      block.extras.matchRate = Audit.computeSpamHealthFromClassified(summary.transactions);
+    }
+  }
+
+  /** @asyncUnsafe */
+  private async $refreshBlockHealth(block: BlockExtended): Promise<void> {
+    if (!config.MEMPOOL.AUDIT || !block.extras) return;
+    const summary = this.blockSummaries.find(item => item.id === block.id);
+    if (summary?.transactions.length && (summary.version ?? 0) >= Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION) {
+      block.extras.matchRate = Audit.computeSpamHealthFromClassified(summary.transactions);
+      return;
+    }
+    try {
+      const transactions = await this.$getStrippedBlockTransactions(block.id, false, false, undefined, block.height);
+      block.extras.matchRate = transactions.length ? Audit.computeSpamHealthFromClassified(transactions) : null;
+      if (block.extras.matchRate != null && Common.auditIndexingEnabled()) {
+        const previous = await BlocksAuditsRepository.$getBlockAuditScore(block.id);
+        if (previous) {
+          block.extras.expectedFees = previous.expectedFees ?? null;
+          block.extras.expectedWeight = previous.expectedWeight ?? null;
+        } else {
+          await BlocksAuditsRepository.$saveAudit({
+            version: 1, time: block.timestamp, height: block.height, hash: block.id,
+            unseenTxs: [], addedTxs: [], prioritizedTxs: [], missingTxs: [], freshTxs: [],
+            sigopTxs: [], fullrbfTxs: [], acceleratedTxs: [], matchRate: block.extras.matchRate,
+          });
+        }
+      }
+    } catch (e) {
+      block.extras.matchRate = null;
+      logger.debug(`Cannot refresh health for block ${block.height}: ` + (e instanceof Error ? e.message : e));
+    }
   }
 
   public setNewBlockCallback(fn: (block: BlockExtended, txIds: string[], transactions: TransactionExtended[]) => void) {
@@ -982,6 +1016,9 @@ class Blocks {
           const cpfpSummary = saveCpfpDataToCpfpSummary(txs, blockCpfpData);
           // classify
           const { transactions: classifiedTxs } = this.summarizeBlockTransactions(blockHash, height, cpfpSummary.transactions);
+          if (Common.auditIndexingEnabled()) {
+            await BlocksAuditsRepository.$setHealth(blockHash, Audit.computeSpamHealthFromClassified(classifiedTxs));
+          }
           await BlocksSummariesRepository.$saveTransactions(height, blockHash, classifiedTxs, targetSummaryVersion);
           this.$replaceCachedBlockSummary({ id: blockHash, transactions: classifiedTxs, version: targetSummaryVersion });
           if (unclassifiedBlocks[height].version < 2 && targetSummaryVersion >= 2) {
@@ -1747,6 +1784,8 @@ class Blocks {
         const summary = this.blockSummaries.find(b => b.id === hash);
         if (summary && (summary.version ?? 0) >= Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION) {
           this.$syncBlockBip110ExtrasFromSummary(summary);
+        } else {
+          await this.$refreshBlockHealth(blockByHash);
         }
         return blockByHash;
       }
@@ -1758,7 +1797,9 @@ class Blocks {
     }
 
     // Bitcoin network, add our custom data on top
-    return await this.$indexBlock(hash);
+    const block = await this.$indexBlock(hash);
+    await this.$refreshBlockHealth(block);
+    return block;
   }
 
   /** @asyncUnsafe */
@@ -1828,6 +1869,9 @@ class Blocks {
     }
 
     // Index the response if needed
+    if (Common.auditIndexingEnabled()) {
+      await BlocksAuditsRepository.$setHealth(hash, Audit.computeSpamHealthFromClassified(summary.transactions));
+    }
     if (Common.blocksSummariesIndexingEnabled() === true) {
       await BlocksSummariesRepository.$saveTransactions(height, hash, summary.transactions, summaryVersion);
     }
@@ -1875,38 +1919,7 @@ class Blocks {
         if (block.extras) {
           // Always recompute from version bit (not cached value) to avoid stale data
           block.extras.bip110Signaling = Common.isSignalingBIP110(block.version);
-          if (config.MEMPOOL.AUDIT && block.extras.matchRate == null) {
-            const auditScore = await BlocksAuditsRepository.$getBlockAuditScore(block.id);
-            if (auditScore?.matchRate != null) {
-              block.extras.matchRate = auditScore.matchRate;
-              block.extras.expectedFees = auditScore.expectedFees ?? null;
-              block.extras.expectedWeight = auditScore.expectedWeight ?? null;
-            } else {
-              try {
-                const summaryTxs = await this.$getStrippedBlockTransactions(block.id);
-                if (summaryTxs?.length) {
-                  block.extras.matchRate = Audit.computeSpamHealthFromClassified(summaryTxs);
-                  void BlocksAuditsRepository.$saveAudit({
-                    version: 1,
-                    time: block.timestamp,
-                    height: block.height,
-                    hash: block.id,
-                    unseenTxs: [],
-                    addedTxs: [],
-                    prioritizedTxs: [],
-                    missingTxs: [],
-                    freshTxs: [],
-                    sigopTxs: [],
-                    fullrbfTxs: [],
-                    acceleratedTxs: [],
-                    matchRate: block.extras.matchRate,
-                  });
-                }
-              } catch (e) {
-                logger.debug(`Cannot backfill health for block ${block.height}: ` + (e instanceof Error ? e.message : e));
-              }
-            }
-          }
+          await this.$refreshBlockHealth(block);
           if (block.extras.poolLuck == null && block.extras.pool?.id != null) {
             block.extras.poolLuck = await mining.$getPoolRoundLuck(
               block.extras.pool.id,
@@ -1924,31 +1937,7 @@ class Blocks {
         // ($indexBlock only fetches coinbase, so violation data is always 0 without this)
         if (block.extras) {
           block.extras.bip110Signaling = Common.isSignalingBIP110(block.version);
-          if (config.MEMPOOL.AUDIT && block.extras.matchRate == null) {
-            try {
-              const summaryTxs = await this.$getStrippedBlockTransactions(block.id);
-              if (summaryTxs?.length) {
-                block.extras.matchRate = Audit.computeSpamHealthFromClassified(summaryTxs);
-                void BlocksAuditsRepository.$saveAudit({
-                  version: 1,
-                  time: block.timestamp,
-                  height: block.height,
-                  hash: block.id,
-                  unseenTxs: [],
-                  addedTxs: [],
-                  prioritizedTxs: [],
-                  missingTxs: [],
-                  freshTxs: [],
-                  sigopTxs: [],
-                  fullrbfTxs: [],
-                  acceleratedTxs: [],
-                  matchRate: block.extras.matchRate,
-                });
-              }
-            } catch (e) {
-              logger.debug(`Cannot backfill health for block ${block.height}: ` + (e instanceof Error ? e.message : e));
-            }
-          }
+          await this.$refreshBlockHealth(block);
           if (block.extras.poolLuck == null && block.extras.pool?.id != null) {
             block.extras.poolLuck = await mining.$getPoolRoundLuck(
               block.extras.pool.id,

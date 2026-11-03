@@ -1,3 +1,5 @@
+import { script } from 'bitcoinjs-lib';
+
 const opcodes = {
   OP_FALSE: 0,
   OP_0: 0,
@@ -144,6 +146,32 @@ for (let i = 187; i <= 255; i++) {
 }
 
 export { opcodes };
+
+export function getScriptDataUsage(scriptHex: string): { pushedBytes: number, droppedBytes: number } {
+  const chunks = script.decompile(Buffer.from(scriptHex, 'hex'));
+  let pushedBytes = 0;
+  let droppedBytes = 0;
+  const directPushes: number[] = [];
+  for (const chunk of chunks || []) {
+    if (Buffer.isBuffer(chunk) || chunk === 0 || chunk === 0x4f || (chunk >= 0x51 && chunk <= 0x60)) {
+      const length = Buffer.isBuffer(chunk) ? chunk.length : chunk === 0 ? 0 : 1;
+      pushedBytes += length;
+      directPushes.push(length);
+    } else {
+      if (chunk === opcodes.OP_DROP && directPushes.length) {
+        droppedBytes += directPushes[directPushes.length - 1];
+      } else if (chunk === opcodes.OP_2DROP && directPushes.length >= 2) {
+        droppedBytes += directPushes[directPushes.length - 1] + directPushes[directPushes.length - 2];
+      }
+      // Any intervening opcode ends the immediate-push pattern, including CLTV/CSV.
+      directPushes.length = 0;
+      if (chunk === opcodes.OP_RETURN) {
+        break;
+      }
+    }
+  }
+  return { pushedBytes, droppedBytes };
+}
 
 /** extracts m and n from a multisig script (asm), returns nothing if it is not a multisig script */
 export function parseMultisigScript(script: string): void | { m: number, n: number } {

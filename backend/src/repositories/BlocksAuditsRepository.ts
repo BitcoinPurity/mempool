@@ -15,6 +15,11 @@ interface MigrationAudit {
 }
 
 class BlocksAuditRepositories {
+  /** @asyncUnsafe */
+  public async $setHealth(hash: string, matchRate: number): Promise<void> {
+    await DB.query('UPDATE blocks_audits SET match_rate = ? WHERE hash = ?', [matchRate, hash]);
+  }
+
   /** @asyncSafe */
   public async $saveAudit(audit: BlockAudit): Promise<void> {
     try {

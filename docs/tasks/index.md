@@ -10,3 +10,4 @@
 | [TASK-006](TASK-006.md) | REQ-006 永久 RDTS 状态替换部署追踪 | 本地实现与相关验证完成，完整套件有基线失败；未推送／部署 |
 | [TASK-007](TASK-007.md) | REQ-007 Purity Signet backend | Implemented and locally verified; baseline test/lint failures documented; no deployment |
 | [TASK-008](TASK-008.md) | REQ-008 GitHub-hosted CI and Signet regression | Pushed to PR #3; local checks pass; Actions blocked by GitHub HTTP 422 |
+| [TASK-009](TASK-009.md) | REQ-009 区块 Health 数据交易分类 | 已移除同址判定，分类版本 6；399 项后端测试通过，未推送／部署 |
