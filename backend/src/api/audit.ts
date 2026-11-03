@@ -1,21 +1,11 @@
 import config from '../config';
 import logger from '../logger';
-import { MempoolTransactionExtended, MempoolBlockWithTransactions, TransactionExtended, TransactionClassified, TransactionFlags } from '../mempool.interfaces';
+import { MempoolTransactionExtended, MempoolBlockWithTransactions, TransactionExtended, TransactionClassified, SPAM_FLAGS } from '../mempool.interfaces';
 import { Common } from './common';
 import rbfCache from './rbf-cache';
 import transactionUtils from './transaction-utils';
 
 const PROPAGATION_MARGIN = 180; // in seconds, time since a transaction is first seen after which it is assumed to have propagated to all miners
-
-// Flags that map to tx.spam during classification (used for summary-based health)
-const SPAM_FLAGS = Number(
-  TransactionFlags.op_return |
-  TransactionFlags.fake_pubkey |
-  TransactionFlags.inscription |
-  TransactionFlags.fake_scripthash |
-  TransactionFlags.annex |
-  TransactionFlags.opnet
-);
 
 export interface AuditResult {
   unseen: string[];
@@ -75,7 +65,7 @@ class Audit {
     for (let i = 0; i < transactions.length; i++) {
       const weight = (transactions[i].vsize || 0) * 4;
       blkWeight += weight;
-      if (i > 0 && ((transactions[i].flags || 0) & SPAM_FLAGS) !== 0) {
+      if (i > 0 && (BigInt(transactions[i].flags || 0) & SPAM_FLAGS) !== 0n) {
         spamWeight += weight;
       }
     }

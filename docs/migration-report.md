@@ -67,3 +67,13 @@ Rollback: stop only the Signet service and restore its previous binary/config if
 ## REQ-008: GitHub-hosted CI
 
 CI configuration moves from the unavailable upstream runner to GitHub-hosted Ubuntu. No application configuration, dependency lockfile, database migration or production rollout is required. See TASK-008 for local and Actions results.
+
+## REQ-009：Health 垃圾分类
+
+以前任意 OP_RETURN 都设置 `spam=true`，摘要 Health 也直接把 `op_return` 类型位纳入垃圾掩码。现在仅在超过 80 字节载荷或多 OP_RETURN 输出时设置独立的垃圾位；新增直接 PUSH／DROP 和 PUSH／PUSH／2DROP 累计超过 80 字节的结构识别。其余垃圾类型和 BIP110 结构检查不变。
+
+新增两项前后端一致的低 32 位分类常量，保留所有原位值；Health 使用 BigInt 掩码。前端普通 OP_RETURN 移至 Features，新增两项后端垃圾标签；不改变本地原始交易解码流程。
+
+所有网络摘要分类版本升至 6（撤销版本 5 的同址判断），现有摘要按需或通过已启用的 Esplora 后台分类流程重建；Core 后端按需重建可获取的交易。重新分类后更新已有 `blocks_audits.match_rate`，保留审计其他字段，不需要 schema 迁移。旧摘要无法单靠已有标记区分超长、多输出与此前的同址条件，必须重新获取交易。版本 5 的同址误标在摘要重建时清除。历史数据量较大时，启用后台分类可能增加交易读取与数据库更新负载。尚未重分类的历史图表可能暂时混合旧值与新值。
+
+本次没有执行生产重扫、清表或其他数据操作，也未推送或部署。回滚到旧程序会恢复旧分类语义；已有新摘要／分数不会自动变回旧定义，需要另行明确重算范围，不能把二者混用视为规则一致。验证见 [TASK-009](tasks/TASK-009.md)。

@@ -286,6 +286,8 @@ export const TransactionFlags = {
   fake_scripthash:                  0b00001000_00000000_00000000_00000000n,
   annex:                            0b00010000_00000000_00000000_00000000n,
   opnet:                            0b00100000_00000000_00000000_00000000n,
+  op_return_spam:                   0b01000000_00000000_00000000_00000000n,
+  op_drop:                          0b10000000_00000000_00000000_00000000n,
   // heuristics
   coinjoin:                0b00000001_00000000_00000000_00000000_00000000n,
   consolidation:           0b00000010_00000000_00000000_00000000_00000000n,
@@ -305,6 +307,10 @@ export const TransactionFlags = {
   bip110_op_success:          0b00000100_00000000_00000000_00000000_00000000_00000000_00000000n, // bit 50 - Rule 6: OP_SUCCESS* in tapscript
   bip110_op_if_notif:         0b00001000_00000000_00000000_00000000_00000000_00000000_00000000n, // bit 51 - Rule 7: OP_IF/OP_NOTIF executing in tapscript
 };
+
+export const SPAM_FLAGS = TransactionFlags.op_return_spam | TransactionFlags.op_drop |
+  TransactionFlags.fake_pubkey | TransactionFlags.inscription | TransactionFlags.fake_scripthash |
+  TransactionFlags.annex | TransactionFlags.opnet;
 
 export interface BlockExtension {
   totalFees: number;

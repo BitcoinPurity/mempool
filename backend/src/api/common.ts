@@ -1,13 +1,13 @@
 import * as bitcoinjs from 'bitcoinjs-lib';
 import { Request } from 'express';
-import { EffectiveFeeStats, MempoolBlockWithTransactions, TransactionExtended, MempoolTransactionExtended, TransactionStripped, WorkingEffectiveFeeStats, TransactionClassified, TransactionFlags } from '../mempool.interfaces';
+import { EffectiveFeeStats, MempoolBlockWithTransactions, TransactionExtended, MempoolTransactionExtended, TransactionStripped, WorkingEffectiveFeeStats, TransactionClassified, TransactionFlags, SPAM_FLAGS } from '../mempool.interfaces';
 import config from '../config';
 import { NodeSocket } from '../repositories/NodesSocketsRepository';
 import { isIP } from 'net';
 import transactionUtils from './transaction-utils';
 import { isPoint } from '../utils/secp256k1';
 import logger from '../logger';
-import { getVarIntLength, opcodes, parseMultisigScript } from '../utils/bitcoin-script';
+import { getScriptDataUsage, getVarIntLength, opcodes, parseMultisigScript } from '../utils/bitcoin-script';
 import { IEsploraApi } from './bitcoin/esplora-api.interface';
 import { OFFICIAL_SIGNET } from '../purity-config';
 
@@ -1127,8 +1127,58 @@ export class Common {
     return result;
   }
 
+  static getDataCarrierFlags(tx: TransactionExtended): bigint {
+    let flags = 0n;
+    let returnCount = 0;
+    let droppedBytes = 0;
+    for (const vout of tx.vout) {
+      if (vout.scriptpubkey_type === 'op_return') {
+        returnCount++;
+        if (getScriptDataUsage(vout.scriptpubkey.slice(2)).pushedBytes > 80) {
+          flags |= TransactionFlags.op_return_spam;
+        }
+      } else {
+        droppedBytes += getScriptDataUsage(vout.scriptpubkey).droppedBytes;
+      }
+    }
+    if (returnCount > 1) {
+      flags |= TransactionFlags.op_return_spam;
+    }
+    for (const vin of tx.vin) {
+      if (vin.is_coinbase) continue;
+      droppedBytes += getScriptDataUsage(vin.scriptsig || '').droppedBytes;
+      const type = vin.prevout?.scriptpubkey_type;
+      let redeemScript: string | undefined;
+      if (type === 'p2sh') {
+        const parsed = this.parseScriptSigPushes(vin.scriptsig);
+        if (parsed?.pushOnly) {
+          redeemScript = parsed.pushes[parsed.pushes.length - 1]?.dataHex;
+          droppedBytes += getScriptDataUsage(redeemScript || '').droppedBytes;
+        }
+      }
+      if (!vin.witness?.length) continue;
+      if (type === 'v0_p2wsh' || (type === 'p2sh' && /^0020[0-9a-f]{64}$/i.test(redeemScript || ''))) {
+        droppedBytes += getScriptDataUsage(vin.witness[vin.witness.length - 1]).droppedBytes;
+      } else if (type === 'v1_p2tr' || !type) {
+        const hasAnnex = vin.witness.length > 1 && vin.witness[vin.witness.length - 1].startsWith('50');
+        const controlIndex = vin.witness.length - (hasAnnex ? 2 : 1);
+        const control = vin.witness[controlIndex];
+        if (controlIndex >= 1 && /^(c0|c1)([0-9a-f]{64})+$/i.test(control)) {
+          droppedBytes += getScriptDataUsage(vin.witness[controlIndex - 1]).droppedBytes;
+        }
+      }
+    }
+    if (droppedBytes > 80) {
+      flags |= TransactionFlags.op_drop;
+    }
+    return flags;
+  }
+
   static getTransactionFlags(tx: TransactionExtended, height?: number): number {
     let flags = tx.flags ? BigInt(tx.flags) : 0n;
+    flags &= ~(TransactionFlags.op_return_spam | TransactionFlags.op_drop);
+    flags |= this.getDataCarrierFlags(tx);
+    tx.spam = (flags & SPAM_FLAGS) !== 0n;
 
     // Update variable flags (CPFP, RBF)
     flags &= ~TransactionFlags.cpfp_child;
@@ -1255,7 +1305,7 @@ export class Common {
         case 'v0_p2wpkh': flags |= TransactionFlags.p2wpkh; break;
         case 'v0_p2wsh': flags |= TransactionFlags.p2wsh; break;
         case 'v1_p2tr': flags |= TransactionFlags.p2tr; break;
-        case 'op_return': flags |= TransactionFlags.op_return; tx.spam = true; break;
+        case 'op_return': flags |= TransactionFlags.op_return; break;
       }
       if (vout.scriptpubkey_address) {
         reusedOutputAddresses[vout.scriptpubkey_address] = (reusedOutputAddresses[vout.scriptpubkey_address] || 0) + 1;
@@ -1304,6 +1354,7 @@ export class Common {
     // BIP110 violation detection
     flags |= this.getBIP110Flags(tx, height);
 
+    tx.spam = (flags & SPAM_FLAGS) !== 0n;
     return Number(flags);
   }
 
@@ -1413,8 +1464,10 @@ export class Common {
    * v3: BIP110 Rule 2 P2SH redeemScript exemption via raw scriptSig parsing
    *     (fixes false "large data push" on 3-of-4 uncompressed CHECKMULTISIG).
    * Signet v4 excludes the selected post-activation coinbase commitment.
+   * v5: distinguish ordinary OP_RETURN from spam; detect direct OP_DROP data.
+   * v6: self-transfers no longer imply OP_RETURN spam.
    */
-  static readonly BLOCKS_SUMMARY_CLASSIFICATION_VERSION = config.MEMPOOL.NETWORK === 'signet' ? 4 : 3;
+  static readonly BLOCKS_SUMMARY_CLASSIFICATION_VERSION = 6;
 
   static blocksSummariesIndexingEnabled(): boolean {
     return (

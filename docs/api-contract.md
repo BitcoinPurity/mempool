@@ -70,3 +70,11 @@ See [operational validation](purity-signet.md) for direct RPC/Electrum checks. N
 ## REQ-008: GitHub-hosted CI
 
 No application API changes. CI listens to main pushes and PR updates and runs the deterministic Signet regression suite without node credentials.
+
+## REQ-009：Health 与数据交易标记
+
+接口路径和响应结构不变，`extras.matchRate`／审计 `matchRate` 仍为非垃圾交易权重占比的百分数，保留两位小数，Coinbase 计入总权重但不计入垃圾权重。普通 OP_RETURN 不再降低分数。新增分类位 `op_return_spam = 2^30`、`op_drop = 2^31`，原 `op_return = 2^24` 继续表示存在 OP_RETURN 输出，不再等价于垃圾。所有分类位保持既有数值；消费者应使用 BigInt 掩码，避免高位截断。
+
+OP_RETURN 垃圾条件为任一输出累计数据载荷超过 80 字节或多于一个 OP_RETURN 输出。同址转账与地址复用本身不构成垃圾交易。OP_DROP 位表示可见脚本中直接压入并立即 DROP／2DROP 的累计数据超过 80 字节，排除 CLTV/CSV 参数清理。隐藏脚本未揭示前不推断；该指标不表示共识有效性。
+
+摘要分类版本升级为 6，撤销版本 5 的同址垃圾判断。过期摘要按需重建，历史分数随摘要重分类更新；尚未访问／后台重分类的历史数据库行与聚合图表可能暂时保留旧分数。重分类失败时区块查询不继续返回缓存旧分数，显示未知。前端原始交易本地解码不新增这两项启发式检测；新垃圾标签来自后端分类，普通 OP_RETURN 类型标签保持可用。
