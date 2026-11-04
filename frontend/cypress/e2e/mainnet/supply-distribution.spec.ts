@@ -22,9 +22,9 @@ const topRows = (page: number) => Array.from({ length: 100 }, (_, i) => {
   return { rank, address: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', type: 'v0_p2wpkh', balance: 3_000_000_000 - rank, utxoCount: 2 };
 });
 
-function enableSupply(enabled = true): void {
+function enableSupply(networks = 'mainnet'): void {
   cy.intercept('GET', '**/resources/config.js', {
-    body: `window.__env = window.__env || {}; window.__env.SUPPLY_DISTRIBUTION_ENABLED = ${enabled};`,
+    body: `window.__env = window.__env || {}; window.__env.SIGNET_ENABLED = true; window.__env.SUPPLY_DISTRIBUTION_NETWORKS = '${networks}';`,
     headers: { 'content-type': 'application/javascript' },
   });
 }
@@ -100,11 +100,26 @@ describe('Supply Distribution page', () => {
   });
 
   it('hides the navigation entry when disabled', () => {
-    enableSupply(false);
+    enableSupply('');
     cy.visit('/');
     cy.get('#btn-graphs').should('be.visible');
     cy.get('#btn-supply').should('not.exist');
     cy.get('@distribution.all').should('have.length', 0);
+  });
+
+  it('only shows the page on the listed networks', () => {
+    enableSupply('signet');
+    cy.visit('/supply');
+    cy.location('pathname').should('eq', '/');
+    cy.get('#btn-graphs').should('be.visible');
+    cy.get('#btn-supply').should('not.exist');
+    cy.get('@distribution.all').should('have.length', 0);
+
+    cy.intercept('GET', '**/signet/api/v1/supply/distribution', (req) => req.reply(distribution())).as('signetDistribution');
+    cy.visit('/signet/supply');
+    cy.wait('@signetDistribution');
+    cy.get('#btn-supply').should('be.visible');
+    cy.get('[data-cy=supply-height]').should('contain', '900,000');
   });
 });
 

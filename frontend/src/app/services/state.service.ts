@@ -97,7 +97,7 @@ export interface Env {
    */
   PURITY_API_ROOT?: string;
   PURITY_NODES_MAP_ENABLED: boolean;
-  SUPPLY_DISTRIBUTION_ENABLED: boolean;
+  SUPPLY_DISTRIBUTION_NETWORKS: string;
   CORE_TIP_HEIGHT_API?: string;
   CORE_TX_API?: string;
   customize?: Customization;
@@ -149,11 +149,20 @@ const defaultEnv: Env = {
   'TWIDGET_API': 'https://mempool.ninja',
   'PURITY_API_ROOT': '',
   'PURITY_NODES_MAP_ENABLED': true,
-  'SUPPLY_DISTRIBUTION_ENABLED': false,
+  'SUPPLY_DISTRIBUTION_NETWORKS': '',
   'CORE_TIP_HEIGHT_API': 'https://mempool.space/api/blocks/tip/height',
   'CORE_TX_API': 'https://mempool.space/api/tx/{txid}',
   'PROD_DOMAINS': [],
 };
+
+const SUPPLY_NETWORKS = ['mainnet', 'signet', 'testnet', 'testnet4', 'regtest'];
+
+export function supplyDistributionNetworks(value: unknown): string[] {
+  if (typeof value !== 'string') {
+    return [];
+  }
+  return value.split(',').map((network) => network.trim()).filter((network) => SUPPLY_NETWORKS.includes(network));
+}
 
 @Injectable({
   providedIn: 'root'
@@ -522,6 +531,15 @@ export class StateService {
 
   isLiquid() {
     return this.network === 'liquid' || this.network === 'liquidtestnet';
+  }
+
+  /** Networks with a Supply Distribution backend, from the comma-separated SUPPLY_DISTRIBUTION_NETWORKS. */
+  supplyDistributionNetworks(): string[] {
+    return supplyDistributionNetworks(this.env.SUPPLY_DISTRIBUTION_NETWORKS);
+  }
+
+  isSupplyDistributionEnabled(network: string = this.network): boolean {
+    return this.supplyDistributionNetworks().includes(network || 'mainnet');
   }
 
   /**

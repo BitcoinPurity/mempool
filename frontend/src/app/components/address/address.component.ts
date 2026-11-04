@@ -660,7 +660,7 @@ export class AddressComponent implements OnInit, OnDestroy {
   loadSupplyRank(address: string): void {
     this.supplyRankSubscription?.unsubscribe();
     this.supplyRank = null;
-    if (!this.stateService.env.SUPPLY_DISTRIBUTION_ENABLED || this.stateService.isLiquid() || !address) {
+    if (!this.stateService.isSupplyDistributionEnabled() || !address) {
       return;
     }
     this.supplyRankSubscription = this.apiService.getSupplyAddressRank$(address)

@@ -6,7 +6,7 @@
 
 页面包含：概览（数据高度、UTXO 集总额、按发行计划的已发行量及占 21M 比例、有余额的脚本数、UTXO 数）；按余额区间 `[0, 0.001)` … `≥100k` BTC 的分布图表与表格（余额为 0 但仍有 UTXO 的脚本单独计数）；Top Addresses（默认前 10,000 名，每页 100 条，P2PK 显示公钥，无地址脚本显示截断 hex）。地址详情页对前 N 名显示 "Supply rank #N · x% of supply"。
 
-数据每个新区块更新一次，固定延迟 6 个确认（数据高度 = tip − 6）。一次性用本机 Purity 节点 `dumptxoutset` 引导，此后逐块增量；超过 6 块的重组通过撤销区块处理，无法撤销或与 coinstatsindex 校验不一致时标记 stale 并暂停，由运维清空状态重新引导。余额保存在现有 MariaDB 实例中的独立 database。后端 `SUPPLY_DISTRIBUTION.ENABLED` 与前端 `SUPPLY_DISTRIBUTION_ENABLED` 默认关闭。
+数据每个新区块更新一次，固定延迟 6 个确认（数据高度 = tip − 6）。一次性用本机 Purity 节点 `dumptxoutset` 引导，此后逐块增量；超过 6 块的重组通过撤销区块处理，无法撤销或与 coinstatsindex 校验不一致时标记 stale 并暂停，由运维清空状态重新引导。余额保存在现有 MariaDB 实例中的独立 database。后端 `SUPPLY_DISTRIBUTION.ENABLED` 与前端 `SUPPLY_DISTRIBUTION_NETWORKS`（按网络列出，默认为空）默认关闭。
 
 ## REQ-010：轻量 Health 与摘要重建
 

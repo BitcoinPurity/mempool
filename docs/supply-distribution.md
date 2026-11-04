@@ -49,7 +49,7 @@ sudo setfacl -d -m u:mempool:rw /var/lib/purity-supply
 }
 ```
 
-Signet 进程的 `DATABASE` 默认是 `mempool_signet_supply`，不能使用主网库名。前端 `mempool-frontend-config.json` 设置 `"SUPPLY_DISTRIBUTION_ENABLED": true`（Docker：环境变量同名）。
+Signet 进程的 `DATABASE` 默认是 `mempool_signet_supply`，不能使用主网库名。前端按网络开启：`mempool-frontend-config.json` 设置 `"SUPPLY_DISTRIBUTION_NETWORKS"`，逗号分隔列出已开启后端功能的网络（`mainnet`、`signet`、`testnet`、`testnet4`、`regtest`），如只开 Signet 时为 `"signet"`，两者都开时为 `"mainnet,signet"`（Docker：环境变量同名）。未列出的网络不显示导航和地址页排名，直接访问 `/supply` 会回到该网络首页。
 
 ## 5. 开启时机
 
