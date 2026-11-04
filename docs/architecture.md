@@ -10,7 +10,7 @@
 
 **存储**：`DB` 构造函数接受 `{ database }`，复用主库主机与凭据。供应库 schema 由 `supply-database.ts` 自管（`supply_schema_version`），不修改 `database-migration.ts`。初始化失败只禁用本功能并记录错误。
 
-**API 与前端**：路由在本进程按数据高度缓存 Top N 门槛行，地址排名仅对门槛内地址做两次索引计数。地址编码用 bitcoinjs 的纯函数（主网 `bitcoin`，Signet `testnet`）。前端组件在 graphs 模块中，路由仅在 `window.__env.SUPPLY_DISTRIBUTION_NETWORKS`（逗号分隔，如 `signet` 或 `mainnet,signet`）非空时注册，并由守卫限制到所列网络，导航与地址页排名同样只在所列网络显示；订阅 `chainTip$` 去抖 5 秒重新拉取，高度不变不重绘。
+**API 与前端**：路由在本进程按数据高度缓存 Top N 门槛行，地址排名仅对门槛内地址做两次索引计数。地址编码用 bitcoinjs 的纯函数（主网 `bitcoin`，Signet `testnet`）。前端组件在 graphs 模块中，路由仅在 `window.__env.SUPPLY_DISTRIBUTION_NETWORKS`（逗号分隔，如 `signet` 或 `mainnet,signet`）非空时注册，并由守卫限制到所列网络，导航与地址页排名同样只在所列网络显示；订阅 `chainTip$` 去抖 5 秒重新拉取，高度不变不重绘。 持有集中度按数据高度缓存：一次 `SELECT balance … ORDER BY balance DESC, script_hash DESC LIMIT TOP_N`（覆盖索引）后由纯函数 `holderTiers` 分层。页面文字用 `@@supply.*` 标识，翻译写入 `messages.xlf` 与构建的 33 个 `messages.<lang>.xlf`。
 
 ## REQ-010：轻量 Health 展示与重建排队
 

@@ -17,6 +17,14 @@ export interface SupplyBucket {
   amount: number;
 }
 
+export interface SupplyHolderTier {
+  fromRank: number;
+  /** Inclusive; null for every script ranked below the last tier. */
+  toRank: number | null;
+  scriptCount: number;
+  amount: number;
+}
+
 export interface SupplyDistribution extends SupplyDataState {
   totalAmount: number;
   issuedAmount: number;
@@ -26,6 +34,7 @@ export interface SupplyDistribution extends SupplyDataState {
   nonZeroScriptCount: number;
   zeroBalanceScripts: number;
   buckets: SupplyBucket[];
+  tiers?: SupplyHolderTier[];
 }
 
 export interface SupplyTopAddress {

@@ -11489,6 +11489,150 @@
           <context context-type="linenumber">173</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="supply.address-rank" datatype="html">
+        <source>Supply rank</source>
+        <target>Rang u ponudi</target>
+      </trans-unit>
+      <trans-unit id="supply.of-supply" datatype="html">
+        <source>of supply</source>
+        <target>ponude</target>
+      </trans-unit>
+      <trans-unit id="supply.as-of-block" datatype="html">
+        <source>block</source>
+        <target>blok</target>
+      </trans-unit>
+      <trans-unit id="supply.nav" datatype="html">
+        <source>Supply</source>
+        <target>Ponuda</target>
+      </trans-unit>
+      <trans-unit id="supply.title" datatype="html">
+        <source>Supply Distribution</source>
+        <target>Raspodjela ponude</target>
+      </trans-unit>
+      <trans-unit id="supply.intro" datatype="html">
+        <source>The full coin supply since the genesis block, counted per output script (address). Scripts are not grouped by owner, so an address is not an entity.</source>
+        <target>Cjelokupna ponuda novčića od genesis bloka, brojena po izlaznoj skripti (adresi). Skripte nisu grupirane po vlasniku, pa adresa nije subjekt.</target>
+      </trans-unit>
+      <trans-unit id="supply.no-data" datatype="html">
+        <source>Supply data is being prepared. It appears once the initial UTXO snapshot has been loaded.</source>
+        <target>Podaci o ponudi se pripremaju. Pojavit će se nakon učitavanja početne UTXO snimke.</target>
+      </trans-unit>
+      <trans-unit id="supply.load-error" datatype="html">
+        <source>Unable to load supply data. Please try again later.</source>
+        <target>Nije moguće učitati podatke o ponudi. Pokušajte ponovno kasnije.</target>
+      </trans-unit>
+      <trans-unit id="supply.status-bootstrapping" datatype="html">
+        <source>The initial snapshot is waiting for <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/> confirmations before live updates start.</source>
+        <target>Početna snimka čeka <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/> potvrda prije početka ažuriranja uživo.</target>
+      </trans-unit>
+      <trans-unit id="supply.status-stale" datatype="html">
+        <source>Updates are paused while the supply data is rebuilt. Figures below are from block <x id="INTERPOLATION" equiv-text="{{ d.height }}"/>.</source>
+        <target>Ažuriranja su pauzirana dok se podaci o ponudi ponovno izgrađuju. Brojke ispod su iz bloka <x id="INTERPOLATION" equiv-text="{{ d.height }}"/>.</target>
+      </trans-unit>
+      <trans-unit id="supply.data-height" datatype="html">
+        <source>Data as of block</source>
+        <target>Podaci na blok</target>
+      </trans-unit>
+      <trans-unit id="supply.confirmations-hint" datatype="html">
+        <source>Latest block − <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/></source>
+        <target>Najnoviji blok − <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/></target>
+      </trans-unit>
+      <trans-unit id="supply.utxo-supply" datatype="html">
+        <source>Coins in UTXO set</source>
+        <target>Novčići u UTXO skupu</target>
+      </trans-unit>
+      <trans-unit id="supply.of-max-supply" datatype="html">
+        <source>of 21M</source>
+        <target>od 21M</target>
+      </trans-unit>
+      <trans-unit id="supply.issued" datatype="html">
+        <source>Issued by schedule</source>
+        <target>Izdano prema rasporedu</target>
+      </trans-unit>
+      <trans-unit id="supply.funded-addresses" datatype="html">
+        <source>Addresses with a balance</source>
+        <target>Adrese sa saldom</target>
+      </trans-unit>
+      <trans-unit id="supply.zero-balance" datatype="html">
+        <source>Zero-value only</source>
+        <target>Samo nulta vrijednost</target>
+      </trans-unit>
+      <trans-unit id="supply.utxos" datatype="html">
+        <source>UTXOs</source>
+        <target>UTXO-i</target>
+      </trans-unit>
+      <trans-unit id="supply.concentration" datatype="html">
+        <source>Holder concentration</source>
+        <target>Koncentracija vlasnika</target>
+      </trans-unit>
+      <trans-unit id="supply.concentration-hint" datatype="html">
+        <source>Share of the supply held by addresses at each rank. Ranks are per output script, not per owner.</source>
+        <target>Udio ponude koji drže adrese na svakom rangu. Rangovi su po izlaznoj skripti, ne po vlasniku.</target>
+      </trans-unit>
+      <trans-unit id="supply.by-balance" datatype="html">
+        <source>Distribution by balance</source>
+        <target>Raspodjela po saldu</target>
+      </trans-unit>
+      <trans-unit id="supply.amount" datatype="html">
+        <source>Amount</source>
+        <target>Iznos</target>
+      </trans-unit>
+      <trans-unit id="supply.addresses" datatype="html">
+        <source>Addresses</source>
+        <target>Adrese</target>
+      </trans-unit>
+      <trans-unit id="supply.balance-range" datatype="html">
+        <source>Balance (BTC)</source>
+        <target>Saldo (BTC)</target>
+      </trans-unit>
+      <trans-unit id="supply.addresses-share" datatype="html">
+        <source>% Addresses</source>
+        <target>% adresa</target>
+      </trans-unit>
+      <trans-unit id="supply.supply-share" datatype="html">
+        <source>% Supply</source>
+        <target>% ponude</target>
+      </trans-unit>
+      <trans-unit id="supply.top-addresses" datatype="html">
+        <source>Top Addresses</source>
+        <target>Najveće adrese</target>
+      </trans-unit>
+      <trans-unit id="supply.top-hint" datatype="html">
+        <source>Top <x id="INTERPOLATION" equiv-text="{{ t.total | number }}"/> by balance</source>
+        <target>Top <x id="INTERPOLATION" equiv-text="{{ t.total | number }}"/> po saldu</target>
+      </trans-unit>
+      <trans-unit id="supply.rank" datatype="html">
+        <source>Rank</source>
+        <target>Rang</target>
+      </trans-unit>
+      <trans-unit id="supply.address" datatype="html">
+        <source>Address</source>
+        <target>Adresa</target>
+      </trans-unit>
+      <trans-unit id="supply.balance" datatype="html">
+        <source>Balance</source>
+        <target>Saldo</target>
+      </trans-unit>
+      <trans-unit id="supply.script" datatype="html">
+        <source>Script</source>
+        <target>Skripta</target>
+      </trans-unit>
+      <trans-unit id="supply.meta-description" datatype="html">
+        <source>See how the entire coin supply since the genesis block is distributed across addresses: balance ranges, top addresses (rich list) and UTXO counts, updated with every block.</source>
+        <target>Pogledajte kako je cjelokupna ponuda novčića od genesis bloka raspodijeljena po adresama: rasponi salda, najveće adrese (rich list) i broj UTXO-a, ažurirano sa svakim blokom.</target>
+      </trans-unit>
+      <trans-unit id="supply.tier-rest" datatype="html">
+        <source>Rank <x id="INTERPOLATION" equiv-text="from"/> and below</source>
+        <target>Rang <x id="INTERPOLATION" equiv-text="from"/> i niže</target>
+      </trans-unit>
+      <trans-unit id="supply.tier-top" datatype="html">
+        <source>Top <x id="INTERPOLATION" equiv-text="to"/></source>
+        <target>Top <x id="INTERPOLATION" equiv-text="to"/></target>
+      </trans-unit>
+      <trans-unit id="supply.tier-range" datatype="html">
+        <source>Rank <x id="INTERPOLATION" equiv-text="from"/>–<x id="INTERPOLATION_1" equiv-text="to"/></source>
+        <target>Rang <x id="INTERPOLATION" equiv-text="from"/>–<x id="INTERPOLATION_1" equiv-text="to"/></target>
+      </trans-unit>
     </body>
   </file>
 </xliff>

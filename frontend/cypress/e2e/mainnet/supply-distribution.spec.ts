@@ -5,10 +5,17 @@ const bounds = [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000].map((btc) 
 const buckets = bounds.map((minSats, bucket) => ({
   bucket, minSats, maxSats: bounds[bucket + 1] ?? null, scriptCount: 1000 - bucket * 90, amount: (bucket + 1) * 100 * COIN,
 }));
+const tiers = [
+  { fromRank: 1, toRank: 10, scriptCount: 10, amount: 120_000_000_000_000 },
+  { fromRank: 11, toRank: 100, scriptCount: 90, amount: 180_000_000_000_000 },
+  { fromRank: 101, toRank: 1000, scriptCount: 900, amount: 250_000_000_000_000 },
+  { fromRank: 1001, toRank: 10000, scriptCount: 9000, amount: 300_000_000_000_000 },
+  { fromRank: 10001, toRank: null, scriptCount: 54_990_000, amount: 1_135_000_000_000_000 },
+];
 const state = { status: 'ready', height: 900000, hash: '00'.repeat(32), updatedAt: 1700000000, confirmations: 6 };
 const distribution = (height = 900000) => ({
   ...state, height, totalAmount: 1_985_000_000_000_000, issuedAmount: 1_990_000_000_000_000, maxSupply: 2_100_000_000_000_000,
-  utxoCount: 170_000_000, scriptCount: 55_000_010, nonZeroScriptCount: 55_000_000, zeroBalanceScripts: 10, buckets,
+  utxoCount: 170_000_000, scriptCount: 55_000_010, nonZeroScriptCount: 55_000_000, zeroBalanceScripts: 10, buckets, tiers,
 });
 const satoshi = '0496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee';
 const topRows = (page: number) => Array.from({ length: 100 }, (_, i) => {
@@ -53,6 +60,10 @@ describe('Supply Distribution page', () => {
     cy.get('[data-cy=supply-buckets] tbody tr').first().should('contain', '< 0.001');
     cy.get('[data-cy=supply-buckets] tbody tr').last().should('contain', '≥ 100k');
     cy.get('[data-cy=supply-chart] svg').should('exist');
+    cy.get('[data-cy=supply-tier-chart] svg').should('exist');
+    cy.get('[data-cy=supply-tiers] li').should('have.length', 5);
+    cy.get('[data-cy=supply-tiers] li').first().should('contain', 'Top 10').and('contain', '6.05%');
+    cy.get('[data-cy=supply-tiers] li').last().should('contain', 'Rank 10,001 and below').and('contain', '57.18%');
     cy.get('[data-cy=supply-top] tbody tr').should('have.length', 100);
     cy.get('[data-cy=supply-top] tbody tr').eq(0).find('a').should('have.attr', 'href', `/address/${satoshi}`);
     cy.get('[data-cy=supply-top] tbody tr').eq(1).should('contain', 'Script').and('not.have.descendants', 'a');

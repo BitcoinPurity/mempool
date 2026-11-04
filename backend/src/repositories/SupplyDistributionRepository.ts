@@ -180,6 +180,14 @@ export class SupplyDistributionRepository {
     return rows.map(toBalance);
   }
 
+  /** The top `limit` balances in rank order; served from the (balance, script_hash) index. */
+  /** @asyncUnsafe */
+  async $getTopBalanceAmounts(limit: number): Promise<number[]> {
+    const [rows] = await this.db.query<any[]>(
+      'SELECT balance FROM supply_balances ORDER BY balance DESC, script_hash DESC LIMIT ?', [limit]);
+    return rows.map((row) => Number(row.balance));
+  }
+
   /** The row ranked `rank` (1-based), i.e. the inclusion threshold for the top `rank` list. */
   /** @asyncUnsafe */
   async $getRankedRow(rank: number): Promise<BalanceRecord | null> {

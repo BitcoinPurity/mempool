@@ -1,6 +1,6 @@
 import * as bitcoinjs from 'bitcoinjs-lib';
 import { MAX_SCRIPT_SIZE, addressToScript, describeScript, isUnspendable, supplyNetwork } from '../../api/supply/supply-script';
-import { BUCKET_LOWER_BOUNDS, MAX_SUPPLY_SATS, bucketIndex, issuedSupplyAt } from '../../api/supply/supply-model';
+import { BUCKET_LOWER_BOUNDS, MAX_SUPPLY_SATS, bucketIndex, holderTiers, issuedSupplyAt } from '../../api/supply/supply-model';
 import { BLOCK1_PUBKEY, p2pkUncompressed } from './supply-test-utils';
 
 const mainnet = supplyNetwork('mainnet');
@@ -74,5 +74,28 @@ describe('supply model', () => {
     expect(issuedSupplyAt(210_000)).toBe(210_000 * 5_000_000_000 + 2_500_000_000);
     expect(issuedSupplyAt(10_000_000)).toBe(2_099_999_997_690_000);
     expect(issuedSupplyAt(-1)).toBe(0);
+  });
+});
+
+describe('holder concentration tiers', () => {
+  test('splits the top N into rank tiers and puts the remainder in an open tier', () => {
+    const balances = Array.from({ length: 10000 }, (_, i) => 10000 - i);
+    const sum = (from: number, to: number) => balances.slice(from, to).reduce((a, b) => a + b, 0);
+    const total = sum(0, 10000) + 5000;
+    expect(holderTiers(balances, 10000, total, 10500)).toEqual([
+      { fromRank: 1, toRank: 10, scriptCount: 10, amount: sum(0, 10) },
+      { fromRank: 11, toRank: 100, scriptCount: 90, amount: sum(10, 100) },
+      { fromRank: 101, toRank: 1000, scriptCount: 900, amount: sum(100, 1000) },
+      { fromRank: 1001, toRank: 10000, scriptCount: 9000, amount: sum(1000, 10000) },
+      { fromRank: 10001, toRank: null, scriptCount: 500, amount: 5000 },
+    ]);
+  });
+
+  test('cuts tiers at a smaller TOP_N and ignores zero balances', () => {
+    expect(holderTiers([50, 40, 30, 0, 0], 50, 120, 3)).toEqual([
+      { fromRank: 1, toRank: 10, scriptCount: 3, amount: 120 },
+      { fromRank: 11, toRank: 50, scriptCount: 0, amount: 0 },
+      { fromRank: 51, toRank: null, scriptCount: 0, amount: 0 },
+    ]);
   });
 });

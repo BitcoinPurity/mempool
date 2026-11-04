@@ -11489,6 +11489,150 @@
           <context context-type="linenumber">173</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="supply.address-rank" datatype="html">
+        <source>Supply rank</source>
+        <target>Arzdaki sıra</target>
+      </trans-unit>
+      <trans-unit id="supply.of-supply" datatype="html">
+        <source>of supply</source>
+        <target>arzın</target>
+      </trans-unit>
+      <trans-unit id="supply.as-of-block" datatype="html">
+        <source>block</source>
+        <target>blok</target>
+      </trans-unit>
+      <trans-unit id="supply.nav" datatype="html">
+        <source>Supply</source>
+        <target>Arz</target>
+      </trans-unit>
+      <trans-unit id="supply.title" datatype="html">
+        <source>Supply Distribution</source>
+        <target>Arz Dağılımı</target>
+      </trans-unit>
+      <trans-unit id="supply.intro" datatype="html">
+        <source>The full coin supply since the genesis block, counted per output script (address). Scripts are not grouped by owner, so an address is not an entity.</source>
+        <target>Genesis bloğundan bu yana tüm coin arzı, çıktı betiği (adres) başına sayılır. Betikler sahibine göre gruplanmaz; bu nedenle bir adres bir kişi veya kurum değildir.</target>
+      </trans-unit>
+      <trans-unit id="supply.no-data" datatype="html">
+        <source>Supply data is being prepared. It appears once the initial UTXO snapshot has been loaded.</source>
+        <target>Arz verileri hazırlanıyor. İlk UTXO anlık görüntüsü yüklendikten sonra görünecek.</target>
+      </trans-unit>
+      <trans-unit id="supply.load-error" datatype="html">
+        <source>Unable to load supply data. Please try again later.</source>
+        <target>Arz verileri yüklenemedi. Lütfen daha sonra tekrar deneyin.</target>
+      </trans-unit>
+      <trans-unit id="supply.status-bootstrapping" datatype="html">
+        <source>The initial snapshot is waiting for <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/> confirmations before live updates start.</source>
+        <target>İlk anlık görüntü, canlı güncellemeler başlamadan önce <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/> onay bekliyor.</target>
+      </trans-unit>
+      <trans-unit id="supply.status-stale" datatype="html">
+        <source>Updates are paused while the supply data is rebuilt. Figures below are from block <x id="INTERPOLATION" equiv-text="{{ d.height }}"/>.</source>
+        <target>Arz verileri yeniden oluşturulurken güncellemeler duraklatıldı. Aşağıdaki rakamlar <x id="INTERPOLATION" equiv-text="{{ d.height }}"/> numaralı bloğa aittir.</target>
+      </trans-unit>
+      <trans-unit id="supply.data-height" datatype="html">
+        <source>Data as of block</source>
+        <target>Verilerin ait olduğu blok</target>
+      </trans-unit>
+      <trans-unit id="supply.confirmations-hint" datatype="html">
+        <source>Latest block − <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/></source>
+        <target>Son blok − <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/></target>
+      </trans-unit>
+      <trans-unit id="supply.utxo-supply" datatype="html">
+        <source>Coins in UTXO set</source>
+        <target>UTXO kümesindeki coinler</target>
+      </trans-unit>
+      <trans-unit id="supply.of-max-supply" datatype="html">
+        <source>of 21M</source>
+        <target>21M'nin</target>
+      </trans-unit>
+      <trans-unit id="supply.issued" datatype="html">
+        <source>Issued by schedule</source>
+        <target>Takvime göre çıkarılan</target>
+      </trans-unit>
+      <trans-unit id="supply.funded-addresses" datatype="html">
+        <source>Addresses with a balance</source>
+        <target>Bakiyesi olan adresler</target>
+      </trans-unit>
+      <trans-unit id="supply.zero-balance" datatype="html">
+        <source>Zero-value only</source>
+        <target>Yalnızca sıfır değer</target>
+      </trans-unit>
+      <trans-unit id="supply.utxos" datatype="html">
+        <source>UTXOs</source>
+        <target>UTXO'lar</target>
+      </trans-unit>
+      <trans-unit id="supply.concentration" datatype="html">
+        <source>Holder concentration</source>
+        <target>Sahip yoğunlaşması</target>
+      </trans-unit>
+      <trans-unit id="supply.concentration-hint" datatype="html">
+        <source>Share of the supply held by addresses at each rank. Ranks are per output script, not per owner.</source>
+        <target>Her sıra grubundaki adreslerin elinde tuttuğu arz payı. Sıralar sahibe göre değil, çıktı betiğine göredir.</target>
+      </trans-unit>
+      <trans-unit id="supply.by-balance" datatype="html">
+        <source>Distribution by balance</source>
+        <target>Bakiyeye göre dağılım</target>
+      </trans-unit>
+      <trans-unit id="supply.amount" datatype="html">
+        <source>Amount</source>
+        <target>Miktar</target>
+      </trans-unit>
+      <trans-unit id="supply.addresses" datatype="html">
+        <source>Addresses</source>
+        <target>Adresler</target>
+      </trans-unit>
+      <trans-unit id="supply.balance-range" datatype="html">
+        <source>Balance (BTC)</source>
+        <target>Bakiye (BTC)</target>
+      </trans-unit>
+      <trans-unit id="supply.addresses-share" datatype="html">
+        <source>% Addresses</source>
+        <target>% adres</target>
+      </trans-unit>
+      <trans-unit id="supply.supply-share" datatype="html">
+        <source>% Supply</source>
+        <target>% arz</target>
+      </trans-unit>
+      <trans-unit id="supply.top-addresses" datatype="html">
+        <source>Top Addresses</source>
+        <target>En büyük adresler</target>
+      </trans-unit>
+      <trans-unit id="supply.top-hint" datatype="html">
+        <source>Top <x id="INTERPOLATION" equiv-text="{{ t.total | number }}"/> by balance</source>
+        <target>Bakiyeye göre ilk <x id="INTERPOLATION" equiv-text="{{ t.total | number }}"/></target>
+      </trans-unit>
+      <trans-unit id="supply.rank" datatype="html">
+        <source>Rank</source>
+        <target>Sıra</target>
+      </trans-unit>
+      <trans-unit id="supply.address" datatype="html">
+        <source>Address</source>
+        <target>Adres</target>
+      </trans-unit>
+      <trans-unit id="supply.balance" datatype="html">
+        <source>Balance</source>
+        <target>Bakiye</target>
+      </trans-unit>
+      <trans-unit id="supply.script" datatype="html">
+        <source>Script</source>
+        <target>Betik</target>
+      </trans-unit>
+      <trans-unit id="supply.meta-description" datatype="html">
+        <source>See how the entire coin supply since the genesis block is distributed across addresses: balance ranges, top addresses (rich list) and UTXO counts, updated with every block.</source>
+        <target>Genesis bloğundan bu yana tüm coin arzının adreslere nasıl dağıldığını görün: bakiye aralıkları, en büyük adresler (rich list) ve UTXO sayıları, her blokta güncellenir.</target>
+      </trans-unit>
+      <trans-unit id="supply.tier-rest" datatype="html">
+        <source>Rank <x id="INTERPOLATION" equiv-text="from"/> and below</source>
+        <target><x id="INTERPOLATION" equiv-text="from"/>. sıra ve sonrası</target>
+      </trans-unit>
+      <trans-unit id="supply.tier-top" datatype="html">
+        <source>Top <x id="INTERPOLATION" equiv-text="to"/></source>
+        <target>İlk <x id="INTERPOLATION" equiv-text="to"/></target>
+      </trans-unit>
+      <trans-unit id="supply.tier-range" datatype="html">
+        <source>Rank <x id="INTERPOLATION" equiv-text="from"/>–<x id="INTERPOLATION_1" equiv-text="to"/></source>
+        <target><x id="INTERPOLATION" equiv-text="from"/>–<x id="INTERPOLATION_1" equiv-text="to"/>. sıralar</target>
+      </trans-unit>
     </body>
   </file>
 </xliff>

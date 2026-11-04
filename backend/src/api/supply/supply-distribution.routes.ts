@@ -2,7 +2,7 @@ import { Application, Request, Response } from 'express';
 import config from '../../config';
 import logger from '../../logger';
 import supplyRepository, { BalanceRecord, SupplyDistributionRepository, SupplyState } from '../../repositories/SupplyDistributionRepository';
-import { MAX_SUPPLY_SATS, issuedSupplyAt } from './supply-model';
+import { HolderTier, MAX_SUPPLY_SATS, holderTiers, issuedSupplyAt } from './supply-model';
 import { addressToScript, describeScript, scriptHash, supplyNetwork } from './supply-script';
 
 const MAX_PAGE_SIZE = 100;
@@ -18,6 +18,7 @@ function compareRank(a: BalanceRecord, b: BalanceRecord): number {
 
 export class SupplyDistributionRoutes {
   private threshold: { height: number, hash: string, row: BalanceRecord | null } | null = null;
+  private tiers: { height: number, hash: string, tiers: Promise<HolderTier[]> } | null = null;
 
   constructor(private repository: SupplyDistributionRepository = supplyRepository,
     private topN = config.SUPPLY_DISTRIBUTION.TOP_N,
@@ -54,13 +55,29 @@ export class SupplyDistributionRoutes {
     return this.threshold.row;
   }
 
+  /** Holder concentration by rank tier, computed once per data height. */
+  /** @asyncUnsafe */
+  private async $getTiers(state: SupplyState): Promise<HolderTier[]> {
+    if (!this.tiers || this.tiers.height !== state.height || this.tiers.hash !== state.hash) {
+      const tiers = this.repository.$getTopBalanceAmounts(this.topN)
+        .then((balances) => holderTiers(balances, this.topN, state.totalAmount, state.scriptCount - state.zeroBalanceScripts));
+      this.tiers = { height: state.height, hash: state.hash, tiers };
+      tiers.catch(() => {
+        if (this.tiers?.tiers === tiers) {
+          this.tiers = null;
+        }
+      });
+    }
+    return this.tiers.tiers;
+  }
+
   private async getDistribution(_req: Request, res: Response): Promise<void> {
     try {
       const state = await this.$loadState(res);
       if (!state) {
         return;
       }
-      const buckets = await this.repository.$getBuckets();
+      const [buckets, tiers] = await Promise.all([this.repository.$getBuckets(), this.$getTiers(state)]);
       res.json({
         ...this.stateFields(state),
         totalAmount: state.totalAmount,
@@ -71,6 +88,7 @@ export class SupplyDistributionRoutes {
         nonZeroScriptCount: state.scriptCount - state.zeroBalanceScripts,
         zeroBalanceScripts: state.zeroBalanceScripts,
         buckets,
+        tiers,
       });
     } catch (e) {
       this.sendError(res, e);

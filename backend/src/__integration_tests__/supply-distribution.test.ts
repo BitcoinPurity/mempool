@@ -149,6 +149,13 @@ describe('Supply distribution against MariaDB', () => {
     const [[outside]] = await db.query<any[]>('SELECT script FROM supply_balances ORDER BY balance ASC LIMIT 1') as any;
     const notRanked = await call(':address', { params: { address: describeScript(outside.script, supplyNetwork('mainnet')).address } });
     expect(notRanked.statusCode).toBe(404);
+
+    const distribution = (await call('distribution', { query: {} })).body;
+    const tiers = distribution.tiers;
+    expect(tiers.map((t) => [t.fromRank, t.toRank])).toEqual([[1, 10], [11, 50], [51, null]]);
+    expect(tiers[0].amount).toBe(top.slice(0, 10).reduce((sum, row) => sum + row.balance, 0));
+    expect(tiers.reduce((sum, t) => sum + t.amount, 0)).toBe(distribution.totalAmount);
+    expect(tiers.reduce((sum, t) => sum + t.scriptCount, 0)).toBe(distribution.nonZeroScriptCount);
   }, 120000);
 
   test('bootstrapping again replaces the table', async () => {

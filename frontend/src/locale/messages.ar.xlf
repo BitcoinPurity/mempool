@@ -11478,6 +11478,150 @@
           <context context-type="linenumber">173</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="supply.address-rank" datatype="html">
+        <source>Supply rank</source>
+        <target>ترتيب الحيازة</target>
+      </trans-unit>
+      <trans-unit id="supply.of-supply" datatype="html">
+        <source>of supply</source>
+        <target>من المعروض</target>
+      </trans-unit>
+      <trans-unit id="supply.as-of-block" datatype="html">
+        <source>block</source>
+        <target>الكتلة</target>
+      </trans-unit>
+      <trans-unit id="supply.nav" datatype="html">
+        <source>Supply</source>
+        <target>المعروض</target>
+      </trans-unit>
+      <trans-unit id="supply.title" datatype="html">
+        <source>Supply Distribution</source>
+        <target>توزيع المعروض</target>
+      </trans-unit>
+      <trans-unit id="supply.intro" datatype="html">
+        <source>The full coin supply since the genesis block, counted per output script (address). Scripts are not grouped by owner, so an address is not an entity.</source>
+        <target>المعروض الكامل من العملات منذ كتلة التكوين، محسوبًا لكل نص إخراج (عنوان). لا تُجمَّع النصوص حسب المالك، لذا فالعنوان لا يمثل كيانًا.</target>
+      </trans-unit>
+      <trans-unit id="supply.no-data" datatype="html">
+        <source>Supply data is being prepared. It appears once the initial UTXO snapshot has been loaded.</source>
+        <target>يجري إعداد بيانات المعروض. ستظهر بعد تحميل لقطة UTXO الأولية.</target>
+      </trans-unit>
+      <trans-unit id="supply.load-error" datatype="html">
+        <source>Unable to load supply data. Please try again later.</source>
+        <target>تعذر تحميل بيانات المعروض. يرجى المحاولة لاحقًا.</target>
+      </trans-unit>
+      <trans-unit id="supply.status-bootstrapping" datatype="html">
+        <source>The initial snapshot is waiting for <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/> confirmations before live updates start.</source>
+        <target>اللقطة الأولية بانتظار <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/> تأكيدات قبل بدء التحديثات المباشرة.</target>
+      </trans-unit>
+      <trans-unit id="supply.status-stale" datatype="html">
+        <source>Updates are paused while the supply data is rebuilt. Figures below are from block <x id="INTERPOLATION" equiv-text="{{ d.height }}"/>.</source>
+        <target>التحديثات متوقفة مؤقتًا أثناء إعادة بناء بيانات المعروض. الأرقام أدناه من الكتلة <x id="INTERPOLATION" equiv-text="{{ d.height }}"/>.</target>
+      </trans-unit>
+      <trans-unit id="supply.data-height" datatype="html">
+        <source>Data as of block</source>
+        <target>البيانات حتى الكتلة</target>
+      </trans-unit>
+      <trans-unit id="supply.confirmations-hint" datatype="html">
+        <source>Latest block − <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/></source>
+        <target>آخر كتلة − <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/></target>
+      </trans-unit>
+      <trans-unit id="supply.utxo-supply" datatype="html">
+        <source>Coins in UTXO set</source>
+        <target>العملات في مجموعة UTXO</target>
+      </trans-unit>
+      <trans-unit id="supply.of-max-supply" datatype="html">
+        <source>of 21M</source>
+        <target>من 21 مليون</target>
+      </trans-unit>
+      <trans-unit id="supply.issued" datatype="html">
+        <source>Issued by schedule</source>
+        <target>المُصدَر وفق الجدول</target>
+      </trans-unit>
+      <trans-unit id="supply.funded-addresses" datatype="html">
+        <source>Addresses with a balance</source>
+        <target>عناوين لديها رصيد</target>
+      </trans-unit>
+      <trans-unit id="supply.zero-balance" datatype="html">
+        <source>Zero-value only</source>
+        <target>قيمة صفرية فقط</target>
+      </trans-unit>
+      <trans-unit id="supply.utxos" datatype="html">
+        <source>UTXOs</source>
+        <target>UTXOs</target>
+      </trans-unit>
+      <trans-unit id="supply.concentration" datatype="html">
+        <source>Holder concentration</source>
+        <target>تركّز الحيازة</target>
+      </trans-unit>
+      <trans-unit id="supply.concentration-hint" datatype="html">
+        <source>Share of the supply held by addresses at each rank. Ranks are per output script, not per owner.</source>
+        <target>حصة المعروض التي تحتفظ بها العناوين في كل مرتبة. المراتب لكل نص إخراج وليست لكل مالك.</target>
+      </trans-unit>
+      <trans-unit id="supply.by-balance" datatype="html">
+        <source>Distribution by balance</source>
+        <target>التوزيع حسب الرصيد</target>
+      </trans-unit>
+      <trans-unit id="supply.amount" datatype="html">
+        <source>Amount</source>
+        <target>المبلغ</target>
+      </trans-unit>
+      <trans-unit id="supply.addresses" datatype="html">
+        <source>Addresses</source>
+        <target>العناوين</target>
+      </trans-unit>
+      <trans-unit id="supply.balance-range" datatype="html">
+        <source>Balance (BTC)</source>
+        <target>الرصيد (BTC)</target>
+      </trans-unit>
+      <trans-unit id="supply.addresses-share" datatype="html">
+        <source>% Addresses</source>
+        <target>% العناوين</target>
+      </trans-unit>
+      <trans-unit id="supply.supply-share" datatype="html">
+        <source>% Supply</source>
+        <target>% المعروض</target>
+      </trans-unit>
+      <trans-unit id="supply.top-addresses" datatype="html">
+        <source>Top Addresses</source>
+        <target>أكبر العناوين</target>
+      </trans-unit>
+      <trans-unit id="supply.top-hint" datatype="html">
+        <source>Top <x id="INTERPOLATION" equiv-text="{{ t.total | number }}"/> by balance</source>
+        <target>أكبر <x id="INTERPOLATION" equiv-text="{{ t.total | number }}"/> حسب الرصيد</target>
+      </trans-unit>
+      <trans-unit id="supply.rank" datatype="html">
+        <source>Rank</source>
+        <target>المرتبة</target>
+      </trans-unit>
+      <trans-unit id="supply.address" datatype="html">
+        <source>Address</source>
+        <target>العنوان</target>
+      </trans-unit>
+      <trans-unit id="supply.balance" datatype="html">
+        <source>Balance</source>
+        <target>الرصيد</target>
+      </trans-unit>
+      <trans-unit id="supply.script" datatype="html">
+        <source>Script</source>
+        <target>نص</target>
+      </trans-unit>
+      <trans-unit id="supply.meta-description" datatype="html">
+        <source>See how the entire coin supply since the genesis block is distributed across addresses: balance ranges, top addresses (rich list) and UTXO counts, updated with every block.</source>
+        <target>تعرّف على كيفية توزيع المعروض الكامل من العملات منذ كتلة التكوين على العناوين: نطاقات الأرصدة وأكبر العناوين (قائمة الأثرياء) وأعداد UTXO، مع تحديث في كل كتلة.</target>
+      </trans-unit>
+      <trans-unit id="supply.tier-rest" datatype="html">
+        <source>Rank <x id="INTERPOLATION" equiv-text="from"/> and below</source>
+        <target>المرتبة <x id="INTERPOLATION" equiv-text="from"/> وما دونها</target>
+      </trans-unit>
+      <trans-unit id="supply.tier-top" datatype="html">
+        <source>Top <x id="INTERPOLATION" equiv-text="to"/></source>
+        <target>أكبر <x id="INTERPOLATION" equiv-text="to"/></target>
+      </trans-unit>
+      <trans-unit id="supply.tier-range" datatype="html">
+        <source>Rank <x id="INTERPOLATION" equiv-text="from"/>–<x id="INTERPOLATION_1" equiv-text="to"/></source>
+        <target>المرتبة <x id="INTERPOLATION" equiv-text="from"/>–<x id="INTERPOLATION_1" equiv-text="to"/></target>
+      </trans-unit>
     </body>
   </file>
 </xliff>

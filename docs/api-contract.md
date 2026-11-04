@@ -4,7 +4,7 @@
 
 仅在后端 `SUPPLY_DISTRIBUTION.ENABLED` 且供应库初始化成功时注册；路径带网络前缀（如 `/signet/api/v1/...`）。所有成功响应包含 `status`（`bootstrapping`/`ready`/`stale`）、`height`、`hash`、`updatedAt`（Unix 秒）与 `confirmations`，`Cache-Control: public, max-age=10`。尚无数据时返回 404 `{ "error": "no_data" }`；stale 时照常返回最后数据。金额单位为 sat。
 
-- `GET /api/v1/supply/distribution`：`totalAmount`、`issuedAmount`（创世至 `height` 按发行计划）、`maxSupply`、`utxoCount`、`scriptCount`、`nonZeroScriptCount`、`zeroBalanceScripts`、`buckets[]`（`bucket`、`minSats`、`maxSats|null`、`scriptCount`、`amount`；下界包含）。
+- `GET /api/v1/supply/distribution`：`totalAmount`、`issuedAmount`（创世至 `height` 按发行计划）、`maxSupply`、`utxoCount`、`scriptCount`、`nonZeroScriptCount`、`zeroBalanceScripts`、`buckets[]`（`bucket`、`minSats`、`maxSats|null`、`scriptCount`、`amount`；下界包含）、`tiers[]`（持有集中度：排名 1–10、11–100、101–1,000、1,001–TOP_N 与其余，各含 `fromRank`、`toRank|null`、`scriptCount`、`amount`；只计余额非零的脚本，大于 TOP_N 的分层边界省略，各层 `amount` 之和等于 `totalAmount`）。
 - `GET /api/v1/supply/top-addresses?page=1&limit=100`：`limit` 1–100，`(page−1)·limit < TOP_N`，否则 400（`invalid_limit`/`invalid_page`）。返回 `total`（min(TOP_N, scriptCount)）、`page`、`limit`、`totalAmount`、`rows[]`：`rank`、`address|null`（P2PK 为公钥 hex）、`type`、`balance`、`utxoCount`，无地址时附 `script`（前 64 字节 hex）与 `scriptTruncated`。排序为 `balance DESC, script_hash DESC`。
 - `GET /api/v1/supply/address/:address`：接受本网络地址或公钥 hex，否则 400 `invalid_address`。在前 TOP_N 内返回 `rank`、`topN`、`balance`、`utxoCount`、`share`（占 `totalAmount` 比例）；否则 404 `not_ranked`。
 

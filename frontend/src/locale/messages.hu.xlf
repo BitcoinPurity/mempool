@@ -11489,6 +11489,150 @@
           <context context-type="linenumber">173</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="supply.address-rank" datatype="html">
+        <source>Supply rank</source>
+        <target>Helyezés a kínálatban</target>
+      </trans-unit>
+      <trans-unit id="supply.of-supply" datatype="html">
+        <source>of supply</source>
+        <target>a kínálatból</target>
+      </trans-unit>
+      <trans-unit id="supply.as-of-block" datatype="html">
+        <source>block</source>
+        <target>blokk</target>
+      </trans-unit>
+      <trans-unit id="supply.nav" datatype="html">
+        <source>Supply</source>
+        <target>Kínálat</target>
+      </trans-unit>
+      <trans-unit id="supply.title" datatype="html">
+        <source>Supply Distribution</source>
+        <target>Kínálat eloszlása</target>
+      </trans-unit>
+      <trans-unit id="supply.intro" datatype="html">
+        <source>The full coin supply since the genesis block, counted per output script (address). Scripts are not grouped by owner, so an address is not an entity.</source>
+        <target>A teljes érmekínálat a genezis blokk óta, kimeneti szkriptenként (címenként) számolva. A szkriptek nincsenek tulajdonos szerint csoportosítva, így egy cím nem egy szereplő.</target>
+      </trans-unit>
+      <trans-unit id="supply.no-data" datatype="html">
+        <source>Supply data is being prepared. It appears once the initial UTXO snapshot has been loaded.</source>
+        <target>A kínálati adatok előkészítése folyamatban. A kezdeti UTXO-pillanatkép betöltése után jelennek meg.</target>
+      </trans-unit>
+      <trans-unit id="supply.load-error" datatype="html">
+        <source>Unable to load supply data. Please try again later.</source>
+        <target>A kínálati adatok nem tölthetők be. Kérjük, próbáld újra később.</target>
+      </trans-unit>
+      <trans-unit id="supply.status-bootstrapping" datatype="html">
+        <source>The initial snapshot is waiting for <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/> confirmations before live updates start.</source>
+        <target>A kezdeti pillanatkép <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/> megerősítésre vár, mielőtt az élő frissítések elindulnak.</target>
+      </trans-unit>
+      <trans-unit id="supply.status-stale" datatype="html">
+        <source>Updates are paused while the supply data is rebuilt. Figures below are from block <x id="INTERPOLATION" equiv-text="{{ d.height }}"/>.</source>
+        <target>A frissítések szünetelnek, amíg a kínálati adatok újraépülnek. Az alábbi számok a(z) <x id="INTERPOLATION" equiv-text="{{ d.height }}"/>. blokkból származnak.</target>
+      </trans-unit>
+      <trans-unit id="supply.data-height" datatype="html">
+        <source>Data as of block</source>
+        <target>Adatok a blokk szerint</target>
+      </trans-unit>
+      <trans-unit id="supply.confirmations-hint" datatype="html">
+        <source>Latest block − <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/></source>
+        <target>Legutóbbi blokk − <x id="INTERPOLATION" equiv-text="{{ d.confirmations }}"/></target>
+      </trans-unit>
+      <trans-unit id="supply.utxo-supply" datatype="html">
+        <source>Coins in UTXO set</source>
+        <target>Érmék az UTXO-halmazban</target>
+      </trans-unit>
+      <trans-unit id="supply.of-max-supply" datatype="html">
+        <source>of 21M</source>
+        <target>a 21 millióból</target>
+      </trans-unit>
+      <trans-unit id="supply.issued" datatype="html">
+        <source>Issued by schedule</source>
+        <target>Ütemterv szerint kibocsátva</target>
+      </trans-unit>
+      <trans-unit id="supply.funded-addresses" datatype="html">
+        <source>Addresses with a balance</source>
+        <target>Egyenleggel rendelkező címek</target>
+      </trans-unit>
+      <trans-unit id="supply.zero-balance" datatype="html">
+        <source>Zero-value only</source>
+        <target>Csak nulla érték</target>
+      </trans-unit>
+      <trans-unit id="supply.utxos" datatype="html">
+        <source>UTXOs</source>
+        <target>UTXO-k</target>
+      </trans-unit>
+      <trans-unit id="supply.concentration" datatype="html">
+        <source>Holder concentration</source>
+        <target>Tulajdonosi koncentráció</target>
+      </trans-unit>
+      <trans-unit id="supply.concentration-hint" datatype="html">
+        <source>Share of the supply held by addresses at each rank. Ranks are per output script, not per owner.</source>
+        <target>Az egyes helyezéseken lévő címek részesedése a kínálatból. A helyezés kimeneti szkriptenként értendő, nem tulajdonosonként.</target>
+      </trans-unit>
+      <trans-unit id="supply.by-balance" datatype="html">
+        <source>Distribution by balance</source>
+        <target>Eloszlás egyenleg szerint</target>
+      </trans-unit>
+      <trans-unit id="supply.amount" datatype="html">
+        <source>Amount</source>
+        <target>Összeg</target>
+      </trans-unit>
+      <trans-unit id="supply.addresses" datatype="html">
+        <source>Addresses</source>
+        <target>Címek</target>
+      </trans-unit>
+      <trans-unit id="supply.balance-range" datatype="html">
+        <source>Balance (BTC)</source>
+        <target>Egyenleg (BTC)</target>
+      </trans-unit>
+      <trans-unit id="supply.addresses-share" datatype="html">
+        <source>% Addresses</source>
+        <target>% címek</target>
+      </trans-unit>
+      <trans-unit id="supply.supply-share" datatype="html">
+        <source>% Supply</source>
+        <target>% kínálat</target>
+      </trans-unit>
+      <trans-unit id="supply.top-addresses" datatype="html">
+        <source>Top Addresses</source>
+        <target>Legnagyobb címek</target>
+      </trans-unit>
+      <trans-unit id="supply.top-hint" datatype="html">
+        <source>Top <x id="INTERPOLATION" equiv-text="{{ t.total | number }}"/> by balance</source>
+        <target>Top <x id="INTERPOLATION" equiv-text="{{ t.total | number }}"/> egyenleg szerint</target>
+      </trans-unit>
+      <trans-unit id="supply.rank" datatype="html">
+        <source>Rank</source>
+        <target>Helyezés</target>
+      </trans-unit>
+      <trans-unit id="supply.address" datatype="html">
+        <source>Address</source>
+        <target>Cím</target>
+      </trans-unit>
+      <trans-unit id="supply.balance" datatype="html">
+        <source>Balance</source>
+        <target>Egyenleg</target>
+      </trans-unit>
+      <trans-unit id="supply.script" datatype="html">
+        <source>Script</source>
+        <target>Szkript</target>
+      </trans-unit>
+      <trans-unit id="supply.meta-description" datatype="html">
+        <source>See how the entire coin supply since the genesis block is distributed across addresses: balance ranges, top addresses (rich list) and UTXO counts, updated with every block.</source>
+        <target>Nézd meg, hogyan oszlik meg a címek között a teljes érmekínálat a genezis blokk óta: egyenlegsávok, legnagyobb címek (rich list) és UTXO-darabszám, minden blokkal frissítve.</target>
+      </trans-unit>
+      <trans-unit id="supply.tier-rest" datatype="html">
+        <source>Rank <x id="INTERPOLATION" equiv-text="from"/> and below</source>
+        <target><x id="INTERPOLATION" equiv-text="from"/>. helyezéstől lefelé</target>
+      </trans-unit>
+      <trans-unit id="supply.tier-top" datatype="html">
+        <source>Top <x id="INTERPOLATION" equiv-text="to"/></source>
+        <target>Top <x id="INTERPOLATION" equiv-text="to"/></target>
+      </trans-unit>
+      <trans-unit id="supply.tier-range" datatype="html">
+        <source>Rank <x id="INTERPOLATION" equiv-text="from"/>–<x id="INTERPOLATION_1" equiv-text="to"/></source>
+        <target><x id="INTERPOLATION" equiv-text="from"/>–<x id="INTERPOLATION_1" equiv-text="to"/>. helyezés</target>
+      </trans-unit>
     </body>
   </file>
 </xliff>

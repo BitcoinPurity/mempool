@@ -38,6 +38,51 @@ export function emptyBuckets(): BucketTotals[] {
   }));
 }
 
+/** Rank tier upper bounds for the holder concentration chart: top 1–10, 11–100, 101–1,000, 1,001–10,000. */
+export const TIER_UPPER_RANKS: readonly number[] = Object.freeze([10, 100, 1000, 10000]);
+
+export interface HolderTier {
+  fromRank: number;
+  /** Inclusive; null for the tier of every script ranked below the last bound. */
+  toRank: number | null;
+  scriptCount: number;
+  amount: number;
+}
+
+/**
+ * Split the supply into rank tiers. `topBalances` is the top `topN` balances in rank order (balance DESC);
+ * tiers above `topN` are cut at it, and everything below falls into the final open tier.
+ * Zero balances are not counted as holders.
+ */
+export function holderTiers(topBalances: readonly number[], topN: number, totalAmount: number, nonZeroScriptCount: number): HolderTier[] {
+  const bounds = TIER_UPPER_RANKS.filter((rank) => rank < topN).concat(topN);
+  const tiers: HolderTier[] = [];
+  let from = 0;
+  let countedScripts = 0;
+  let countedAmount = 0;
+  for (const bound of bounds) {
+    let scriptCount = 0;
+    let amount = 0;
+    for (const balance of topBalances.slice(from, bound)) {
+      if (balance > 0) {
+        scriptCount++;
+        amount += balance;
+      }
+    }
+    tiers.push({ fromRank: from + 1, toRank: bound, scriptCount, amount });
+    countedScripts += scriptCount;
+    countedAmount += amount;
+    from = bound;
+  }
+  tiers.push({
+    fromRank: topN + 1,
+    toRank: null,
+    scriptCount: Math.max(0, nonZeroScriptCount - countedScripts),
+    amount: Math.max(0, totalAmount - countedAmount),
+  });
+  return tiers;
+}
+
 /** Total subsidy issued by the schedule for blocks 0..height inclusive (includes the genesis output). */
 export function issuedSupplyAt(height: number): number {
   if (!Number.isSafeInteger(height) || height < 0) {

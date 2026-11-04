@@ -53,6 +53,24 @@
       </div>
     </div>
 
+    <div class="card-section" *ngIf="d.tiers?.length" data-cy="supply-tiers">
+      <div class="section-header">
+        <h2 i18n="@@supply.concentration">Holder concentration</h2>
+      </div>
+      <div class="concentration">
+        <div class="donut" *browserOnly echarts [initOpts]="chartInitOptions" [options]="tierChartOptions" data-cy="supply-tier-chart"></div>
+        <ul class="tier-legend">
+          <li *ngFor="let tier of d.tiers; let i = index; trackBy: trackByTier">
+            <span class="dot" [style.background-color]="tierColor(tier, i)"></span>
+            <span class="name">{{ tierLabel(tier) }}</span>
+            <span class="share">{{ percent(tier.amount, d.totalAmount) | number: '1.1-2' }}%</span>
+            <span class="amount"><app-amount [satoshis]="tier.amount" digitsInfo="1.0-0" [noFiat]="true"></app-amount></span>
+          </li>
+        </ul>
+      </div>
+      <p class="text-muted small mb-0" i18n="@@supply.concentration-hint">Share of the supply held by addresses at each rank. Ranks are per output script, not per owner.</p>
+    </div>
+
     <div class="card-section">
       <div class="section-header">
         <h2 i18n="@@supply.by-balance">Distribution by balance</h2>

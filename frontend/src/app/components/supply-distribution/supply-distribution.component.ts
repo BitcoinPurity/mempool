@@ -7,10 +7,14 @@ import { EChartsOption } from '@app/graphs/echarts';
 import { ApiService } from '@app/services/api.service';
 import { StateService } from '@app/services/state.service';
 import { SeoService } from '@app/services/seo.service';
-import { SupplyBucket, SupplyDistribution, SupplyTopAddresses } from '@interfaces/supply-distribution.interface';
+import { SupplyBucket, SupplyDistribution, SupplyHolderTier, SupplyTopAddresses } from '@interfaces/supply-distribution.interface';
 
 const COIN = 100_000_000;
 const PAGE_SIZE = 100;
+
+// Ranked tiers go from dark to light; everything outside the top N is neutral grey.
+const TIER_COLORS = ['#1E40AF', '#2563EB', '#3B82F6', '#93C5FD'];
+const REST_COLOR = '#6B7280';
 
 type ChartMetric = 'amount' | 'scripts';
 
@@ -30,6 +34,7 @@ export class SupplyDistributionComponent implements OnInit, OnDestroy {
   error: 'no_data' | 'error' | null = null;
   metric: ChartMetric = 'amount';
   chartOptions: EChartsOption = {};
+  tierChartOptions: EChartsOption = {};
   chartInitOptions = { renderer: 'svg' };
   paginationMaxSize = window.matchMedia('(max-width: 670px)').matches ? 3 : 5;
 
@@ -69,6 +74,7 @@ export class SupplyDistributionComponent implements OnInit, OnDestroy {
           this.top = top;
           if (changed) {
             this.prepareChart();
+            this.prepareTierChart();
           }
         }
         this.cd.markForCheck();
@@ -114,6 +120,23 @@ export class SupplyDistributionComponent implements OnInit, OnDestroy {
     return bucket.minSats === 0 ? '< ' + format(bucket.maxSats) : format(bucket.minSats) + ' – ' + format(bucket.maxSats);
   }
 
+  tierLabel(tier: SupplyHolderTier): string {
+    const from = formatNumber(tier.fromRank, this.locale, '1.0-0');
+    if (tier.toRank === null) {
+      return $localize`:@@supply.tier-rest:Rank ${from}:INTERPOLATION: and below`;
+    }
+    const to = formatNumber(tier.toRank, this.locale, '1.0-0');
+    return tier.fromRank === 1 ? $localize`:@@supply.tier-top:Top ${to}:INTERPOLATION:` : $localize`:@@supply.tier-range:Rank ${from}:INTERPOLATION:–${to}:INTERPOLATION_1:`;
+  }
+
+  tierColor(tier: SupplyHolderTier, index: number): string {
+    return tier.toRank === null ? REST_COLOR : TIER_COLORS[Math.min(index, TIER_COLORS.length - 1)];
+  }
+
+  trackByTier(_index: number, tier: SupplyHolderTier): number {
+    return tier.fromRank;
+  }
+
   percent(part: number, whole: number): number {
     return whole > 0 ? (part / whole) * 100 : 0;
   }
@@ -124,6 +147,53 @@ export class SupplyDistributionComponent implements OnInit, OnDestroy {
 
   trackByRank(_index: number, row: { rank: number }): number {
     return row.rank;
+  }
+
+  private prepareTierChart(): void {
+    const d = this.distribution;
+    if (!d?.tiers?.length) {
+      this.tierChartOptions = {};
+      return;
+    }
+    const tiers = d.tiers;
+    this.tierChartOptions = {
+      animation: false,
+      title: {
+        text: formatNumber(d.totalAmount / COIN, this.locale, '1.0-0'),
+        subtext: 'BTC',
+        left: 'center',
+        top: 'center',
+        itemGap: 2,
+        textStyle: { color: 'var(--fg)', fontSize: 18, fontWeight: 500 },
+        subtextStyle: { color: 'var(--grey)', fontSize: 12 },
+      },
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(17, 19, 31, 1)',
+        borderRadius: 4,
+        shadowColor: 'rgba(0, 0, 0, 0.5)',
+        textStyle: { color: 'var(--tooltip-grey)', align: 'left' },
+        borderColor: '#000',
+        formatter: (params: any): string => {
+          const tier = tiers[params.dataIndex];
+          return `<b>${this.tierLabel(tier)}</b><br>` +
+            `${$localize`:@@supply.amount:Amount`}: ${formatNumber(tier.amount / COIN, this.locale, '1.0-2')} BTC ` +
+            `(${formatNumber(this.percent(tier.amount, d.totalAmount), this.locale, '1.2-2')}%)<br>` +
+            `${$localize`:@@supply.addresses:Addresses`}: ${formatNumber(tier.scriptCount, this.locale, '1.0-0')}`;
+        },
+      },
+      series: [{
+        type: 'pie',
+        radius: ['62%', '82%'],
+        center: ['50%', '50%'],
+        avoidLabelOverlap: true,
+        label: { show: false },
+        labelLine: { show: false },
+        itemStyle: { borderColor: 'var(--box-bg)', borderWidth: 2 },
+        emphasis: { scale: true, scaleSize: 4 },
+        data: tiers.map((tier, i) => ({ name: this.tierLabel(tier), value: tier.amount, itemStyle: { color: this.tierColor(tier, i) } })),
+      }],
+    };
   }
 
   private prepareChart(): void {

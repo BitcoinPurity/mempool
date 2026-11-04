@@ -30,6 +30,7 @@ function fakeRepository(current: SupplyState | null = state) {
     $getState: jest.fn(async () => current),
     $getBuckets: jest.fn(async () => emptyBuckets()),
     $getTopBalances: jest.fn(async (offset: number, limit: number) => records.slice(offset, offset + limit)),
+    $getTopBalanceAmounts: jest.fn(async (limit: number) => records.slice(0, limit).map((r) => r.balance)),
     $getRankedRow: jest.fn(async (rank: number) => records[rank - 1] ?? null),
     $getBalance: jest.fn(async (hash: Buffer) => records.find((r) => r.scriptHash.equals(hash)) ?? null),
     $getRank: jest.fn(async (record: BalanceRecord) => records.indexOf(record) + 1),
@@ -64,6 +65,22 @@ describe('supply distribution routes', () => {
     });
     expect(res.body.issuedAmount).toBeGreaterThan(0);
     expect(res.body.buckets).toHaveLength(10);
+    expect(res.body.tiers).toEqual([
+      { fromRank: 1, toRank: 2, scriptCount: 2, amount: 900_000 },
+      { fromRank: 3, toRank: null, scriptCount: 1, amount: 100_000 },
+    ]);
+  });
+
+  test('holder tiers are computed once per data height', async () => {
+    const repo = fakeRepository();
+    const { call } = setup(repo);
+    await call('distribution');
+    await call('distribution');
+    expect(repo.$getTopBalanceAmounts).toHaveBeenCalledTimes(1);
+    expect(repo.$getTopBalanceAmounts).toHaveBeenCalledWith(2);
+    repo.$getState.mockResolvedValue({ ...state, height: state.height + 1, hash: 'cd'.repeat(32) });
+    await call('distribution');
+    expect(repo.$getTopBalanceAmounts).toHaveBeenCalledTimes(2);
   });
 
   test('returns 404 before the first bootstrap', async () => {
