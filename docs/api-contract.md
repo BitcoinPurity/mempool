@@ -1,5 +1,13 @@
 # API 契约
 
+## REQ-011：Supply Distribution
+
+仅在后端 `SUPPLY_DISTRIBUTION.ENABLED` 且供应库初始化成功时注册；路径带网络前缀（如 `/signet/api/v1/...`）。所有成功响应包含 `status`（`bootstrapping`/`ready`/`stale`）、`height`、`hash`、`updatedAt`（Unix 秒）与 `confirmations`，`Cache-Control: public, max-age=10`。尚无数据时返回 404 `{ "error": "no_data" }`；stale 时照常返回最后数据。金额单位为 sat。
+
+- `GET /api/v1/supply/distribution`：`totalAmount`、`issuedAmount`（创世至 `height` 按发行计划）、`maxSupply`、`utxoCount`、`scriptCount`、`nonZeroScriptCount`、`zeroBalanceScripts`、`buckets[]`（`bucket`、`minSats`、`maxSats|null`、`scriptCount`、`amount`；下界包含）。
+- `GET /api/v1/supply/top-addresses?page=1&limit=100`：`limit` 1–100，`(page−1)·limit < TOP_N`，否则 400（`invalid_limit`/`invalid_page`）。返回 `total`（min(TOP_N, scriptCount)）、`page`、`limit`、`totalAmount`、`rows[]`：`rank`、`address|null`（P2PK 为公钥 hex）、`type`、`balance`、`utxoCount`，无地址时附 `script`（前 64 字节 hex）与 `scriptTruncated`。排序为 `balance DESC, script_hash DESC`。
+- `GET /api/v1/supply/address/:address`：接受本网络地址或公钥 hex，否则 400 `invalid_address`。在前 TOP_N 内返回 `rank`、`topN`、`balance`、`utxoCount`、`share`（占 `totalAmount` 比例）；否则 404 `not_ranked`。
+
 ## REQ-010：Health 与 RPC HTTP 错误
 
 `GET /api/v1/block/:hash/summary` 直接调用 `Blocks.$getStrippedBlockTransactions(hash)`，返回分类交易数组。内存／数据库无当前版本摘要时，会等待完整交易取数、分类和必要的持久化完成；该接口自身不运行 GBT 模板审计。

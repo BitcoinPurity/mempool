@@ -158,6 +158,15 @@
     "API_URL": "https://seeder.bitcoinpurity.org",
     "TRUSTED_PROXIES": ["127.0.0.1/32", "::1/128"]
   },
+  "SUPPLY_DISTRIBUTION": {
+    "ENABLED": false,
+    "DATABASE": "mempool_supply",
+    "CONFIRMATIONS": 6,
+    "TOP_N": 10000,
+    "SNAPSHOT_DIR": "",
+    "TEMP_DIR": "",
+    "DUMP_TIMEOUT": 10800000
+  },
   "STRATUM": {
     "ENABLED": false,
     "API": "http://localhost:1234"

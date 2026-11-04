@@ -12,6 +12,7 @@ import { of, merge, Subscription, Observable, forkJoin } from 'rxjs';
 import { SeoService } from '@app/services/seo.service';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
 import { AddressInformation } from '@interfaces/node-api.interface';
+import { SupplyAddressRank } from '@interfaces/supply-distribution.interface';
 import { AddressTypeInfo } from '@app/shared/address-utils';
 import { extractTapLeaves, fillTapTree, convertTextToBuffer, PsbtKeyValue } from '@app/shared/transaction.utils';
 
@@ -127,6 +128,8 @@ export class AddressComponent implements OnInit, OnDestroy {
   psbtForm: UntypedFormGroup;
   psbtError?: string;
   accelerationsSubscription: Subscription;
+  supplyRank: SupplyAddressRank | null = null;
+  supplyRankSubscription: Subscription;
   acceleratedTxids: Set<string> | null = null;
 
   fullyLoaded = false;
@@ -232,6 +235,7 @@ export class AddressComponent implements OnInit, OnDestroy {
       .pipe(
         filter((address) => !!address),
         tap((address: Address) => {
+          this.loadSupplyRank(address.address);
           if ((this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') && /^([a-zA-HJ-NP-Z1-9]{26,35}|[a-z]{2,5}1[ac-hj-np-z02-9]{8,100}|[a-km-zA-HJ-NP-Z1-9]{80})$/.test(address.address)) {
             this.apiService.validateAddress$(address.address)
               .subscribe((addressInfo) => {
@@ -652,7 +656,26 @@ export class AddressComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Rank among the top addresses of the Supply Distribution page, shown only when ranked. */
+  loadSupplyRank(address: string): void {
+    this.supplyRankSubscription?.unsubscribe();
+    this.supplyRank = null;
+    if (!this.stateService.env.SUPPLY_DISTRIBUTION_ENABLED || this.stateService.isLiquid() || !address) {
+      return;
+    }
+    this.supplyRankSubscription = this.apiService.getSupplyAddressRank$(address)
+      .pipe(catchError(() => of(null)))
+      .subscribe((rank) => {
+        this.supplyRank = rank;
+      });
+  }
+
+  supplyRankPage(): number {
+    return this.supplyRank ? Math.ceil(this.supplyRank.rank / 100) : 1;
+  }
+
   ngOnDestroy(): void {
+    this.supplyRankSubscription?.unsubscribe();
     this.mainSubscription.unsubscribe();
     this.mempoolTxSubscription.unsubscribe();
     this.mempoolRemovedTxSubscription.unsubscribe();

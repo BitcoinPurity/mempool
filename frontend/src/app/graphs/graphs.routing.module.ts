@@ -25,6 +25,7 @@ import { AccelerationsListComponent } from '@components/acceleration/acceleratio
 import { AddressComponent } from '@components/address/address.component';
 import { WalletComponent } from '@components/wallet/wallet.component';
 import { CalculatorComponent } from '@components/calculator/calculator.component';
+import { SupplyDistributionComponent } from '@components/supply-distribution/supply-distribution.component';
 
 const browserWindow = window || {};
 // @ts-ignore
@@ -205,6 +206,14 @@ if (window['__env']?.OFFICIAL_MEMPOOL_SPACE) {
         networkSpecific: true,
       },
     }]
+  });
+}
+
+if (browserWindowEnv?.SUPPLY_DISTRIBUTION_ENABLED === true) {
+  routes[0].children?.unshift({
+    path: 'supply',
+    data: { networks: ['bitcoin'] },
+    component: SupplyDistributionComponent,
   });
 }
 

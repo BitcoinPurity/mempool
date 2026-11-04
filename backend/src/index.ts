@@ -51,6 +51,9 @@ import mempoolBlocks from './api/mempool-blocks';
 import walletApi from './api/services/wallets';
 import stratumApi from './api/services/stratum';
 import purityNodesRoutes from './api/purity/purity-nodes.routes';
+import supplyDistributionRoutes from './api/supply/supply-distribution.routes';
+import supplyFollower from './api/supply/supply-follower';
+import { $initializeSupplySchema } from './api/supply/supply-database';
 import { PuritySignetValidator } from './api/purity-signet';
 import ElectrumApi from './api/bitcoin/electrum-api';
 import { OFFICIAL_SIGNET } from './purity-config';
@@ -74,6 +77,7 @@ class Server {
   private serverUnixSocket: http.Server | undefined;
   private app: Application;
   private currentBackendRetryInterval = 1;
+  private supplyDistributionReady = false;
   private backendRetryCount = 0;
 
   private maxHeapSize: number = 0;
@@ -161,6 +165,15 @@ class Server {
       }
     }
 
+    if (config.SUPPLY_DISTRIBUTION.ENABLED && config.DATABASE.ENABLED) {
+      try {
+        await $initializeSupplySchema();
+        this.supplyDistributionReady = true;
+      } catch (e) {
+        logger.err(`Supply distribution disabled: cannot initialize database '${config.SUPPLY_DISTRIBUTION.DATABASE}': ${e instanceof Error ? e.message : e}`);
+      }
+    }
+
     this.app
       .use((req: Request, res: Response, next: NextFunction) => {
         if (this.signetValidator && !this.signetValidator.ready) {
@@ -230,6 +243,11 @@ class Server {
 
     if (config.STATISTICS.ENABLED && config.DATABASE.ENABLED && cluster.isPrimary) {
       statistics.startStatistics();
+    }
+
+    // Single writer: the standalone process, or the first worker in cluster mode.
+    if (this.supplyDistributionReady && (!worker || process.env.workerId === '0')) {
+      supplyFollower.start();
     }
 
     if (Common.isLiquid()) {
@@ -402,6 +420,9 @@ class Server {
     bitcoinRoutes.initRoutes(this.app);
     if (config.MEMPOOL.NETWORK === 'mainnet') {
       purityNodesRoutes.initRoutes(this.app);
+    }
+    if (this.supplyDistributionReady) {
+      supplyDistributionRoutes.initRoutes(this.app);
     }
     if (config.MEMPOOL.OFFICIAL) {
       bitcoinCoreRoutes.initRoutes(this.app);

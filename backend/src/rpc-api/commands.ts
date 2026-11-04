@@ -7,6 +7,7 @@ module.exports = {
   decodeRawTransaction: 'decoderawtransaction', // bitcoind v0.7.0+
   decodeScript: 'decodescript',
   dumpPrivKey: 'dumpprivkey',
+  dumpTxOutSet: 'dumptxoutset', // bitcoind v28.0+ requires the type argument
   dumpWallet: 'dumpwallet', // bitcoind v0.9.0+
   encryptWallet: 'encryptwallet',
   estimateFee: 'estimatefee', // bitcoind v0.10.0x

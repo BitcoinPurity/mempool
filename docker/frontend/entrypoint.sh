@@ -62,6 +62,7 @@ __HISTORICAL_PRICE__=${HISTORICAL_PRICE:=true}
 __ADDITIONAL_CURRENCIES__=${ADDITIONAL_CURRENCIES:=false}
 __STRATUM_ENABLED__=${STRATUM_ENABLED:=false}
 __PURITY_NODES_MAP_ENABLED__=${PURITY_NODES_MAP_ENABLED:=true}
+__SUPPLY_DISTRIBUTION_ENABLED__=${SUPPLY_DISTRIBUTION_ENABLED:=false}
 
 # Export as environment variables to be used by envsubst
 export __MAINNET_ENABLED__
@@ -103,6 +104,7 @@ export __HISTORICAL_PRICE__
 export __ADDITIONAL_CURRENCIES__
 export __STRATUM_ENABLED__
 export __PURITY_NODES_MAP_ENABLED__
+export __SUPPLY_DISTRIBUTION_ENABLED__
 
 folder=$(find /var/www/mempool -name "config.js" | xargs dirname)
 echo ${folder}

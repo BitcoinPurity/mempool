@@ -4,6 +4,7 @@ import { CpfpInfo, OptimizedMempoolStats, AddressInformation, LiquidPegs, ITrans
   RbfTree, BlockAudit, CurrentPegs, AuditStatus, FederationAddress, FederationUtxo, RecentPeg, PegsVolume, AccelerationInfo, TestMempoolAcceptResult, WalletAddress, Treasury, SubmitPackageResult, ChainTip, StaleTip } from '@interfaces/node-api.interface';
 import { BehaviorSubject, Observable, catchError, filter, map, of, shareReplay, take, tap, timeout } from 'rxjs';
 import { PurityNodeSnapshot, PurityNodeSubmission } from '@interfaces/purity-nodes.interface';
+import { SupplyAddressRank, SupplyDistribution, SupplyTopAddresses } from '@interfaces/supply-distribution.interface';
 import { StateService } from '@app/services/state.service';
 import { Transaction } from '@interfaces/electrs.interface';
 import { Conversion } from '@app/services/price.service';
@@ -84,6 +85,19 @@ export class ApiService {
 
   addPurityNode$(node: { host: string; port?: number }): Observable<PurityNodeSubmission> {
     return this.httpClient.post<PurityNodeSubmission>(this.apiBaseUrl + '/api/v1/purity/nodes', node).pipe(timeout(65000));
+  }
+
+  getSupplyDistribution$(): Observable<SupplyDistribution> {
+    return this.httpClient.get<SupplyDistribution>(this.apiBaseUrl + this.apiBasePath + '/api/v1/supply/distribution').pipe(timeout(20000));
+  }
+
+  getSupplyTopAddresses$(page: number, limit: number): Observable<SupplyTopAddresses> {
+    const params = new HttpParams().set('page', page).set('limit', limit);
+    return this.httpClient.get<SupplyTopAddresses>(this.apiBaseUrl + this.apiBasePath + '/api/v1/supply/top-addresses', { params }).pipe(timeout(20000));
+  }
+
+  getSupplyAddressRank$(address: string): Observable<SupplyAddressRank> {
+    return this.httpClient.get<SupplyAddressRank>(this.apiBaseUrl + this.apiBasePath + '/api/v1/supply/address/' + encodeURIComponent(address)).pipe(timeout(20000));
   }
 
   list24HStatistics$(): Observable<OptimizedMempoolStats[]> {

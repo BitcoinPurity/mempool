@@ -1,5 +1,17 @@
 # 架构
 
+## REQ-011：Supply Distribution
+
+模块位于 `backend/src/api/supply/`。键为 `sha256(scriptPubKey)`；按 Core `IsUnspendable` 排除 OP_RETURN 与超过 10000 字节的输出，使结果与快照和 coinstatsindex 一致。
+
+**引导**：`supply_state` 为空时，`SupplyBootstrap` 检查节点已同步，调用 `dumptxoutset <SNAPSHOT_DIR>/purity-supply-utxo-<ts>.dat latest`（独立 RPC 客户端，`DUMP_TIMEOUT` 默认 3 小时）。worker 线程（`supply-bootstrap-worker.ts`）流式解析 Core 28+ v2 快照（magic、版本、network magic、base hash、coins_count；txid 分组；VARINT、CompressAmount、ScriptCompression），与 RPC 返回的 `base_hash`、`coins_written` 核对。第一遍按压缩脚本键的 FNV 哈希写入 256 个分区文件（JS Map 上限约 1670 万条），第二遍逐分区聚合、还原脚本（非压缩 P2PK 用 BigInt 求 y），分批（5000 行／2MB）写入无二级索引的 `supply_balances_new`，最后建 `(balance, script_hash)` 索引。主线程 `RENAME TABLE` 换表后在一个事务中写入 `supply_buckets` 与 `supply_state`（status=bootstrapping）。换表与写状态之间中断时状态仍为空，下次启动重新引导。失败后最多每 6 小时重试；成功后不再自动引导。快照与分区文件只删除本模块命名的文件。
+
+**逐块跟随**：`SupplyFollower` 仅在单进程或集群 workerId 0 中运行，10 秒一轮、单飞。每轮先检查 `getblockhash(state.height) === state.hash`，不一致时对已存区块调用 `getblock(hash, 3)` 取 prevout，按相反 delta 撤销并退回父块，直到回到主链。随后当 `state.height < tip − CONFIRMATIONS` 时逐块前进：校验新块 `previousblockhash`，经 `bitcoinCoreApi.$getTxsForBlock`（verbosity=3）构建净 delta。`planDeltaApplication` 是纯函数，计算新余额、需写／删的行、区间与总量；仓库在一个事务内 `SELECT … FOR UPDATE`、upsert／delete、更新区间与状态，状态与数据同事务，崩溃后可续。余额为负等不一致抛 `SupplyInconsistencyError` → stale；状态不匹配视为冲突重试；RPC 等瞬时错误下轮重试。coinstatsindex 覆盖该高度时比较 `txouts` 与 `total_amount`（允许 1 sat 浮点误差），不一致 → stale。快照高度满 CONFIRMATIONS 后 status 改为 ready。
+
+**存储**：`DB` 构造函数接受 `{ database }`，复用主库主机与凭据。供应库 schema 由 `supply-database.ts` 自管（`supply_schema_version`），不修改 `database-migration.ts`。初始化失败只禁用本功能并记录错误。
+
+**API 与前端**：路由在本进程按数据高度缓存 Top N 门槛行，地址排名仅对门槛内地址做两次索引计数。地址编码用 bitcoinjs 的纯函数（主网 `bitcoin`，Signet `testnet`）。前端组件在 graphs 模块中，路由仅在 `window.__env.SUPPLY_DISTRIBUTION_ENABLED === true` 时注册；订阅 `chainTip$` 去抖 5 秒重新拉取，高度不变不重绘。
+
 ## REQ-010：轻量 Health 展示与重建排队
 
 详情页的 Health 独立于 `blockAudit` 和模板可用性；优先使用区块 extras，同块审计分数可回退。可选审计查询的 404 不设置概览错误，其他错误仍保留。审计接口继续表示有模板的完整审计，不修改 JOIN 或创建空模板。
