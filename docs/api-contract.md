@@ -2,7 +2,13 @@
 
 ## REQ-010：Health 与 RPC HTTP 错误
 
+`GET /api/v1/block/:hash/summary` 直接调用 `Blocks.$getStrippedBlockTransactions(hash)`，返回分类交易数组。内存／数据库无当前版本摘要时，会等待完整交易取数、分类和必要的持久化完成；该接口自身不运行 GBT 模板审计。
+
+`GET /api/v1/block/:hash` 返回区块详情，并等待 Health 刷新；历史数据库区块格式化也可能重建旧版分类摘要。摘要缺失／过期时，该接口同样可能等待完整交易取数，沿用现有失败时 Health 为 null 的行为。
+
 Health 继续从区块接口 `extras.matchRate` 读取。`audit-summary` 没有完整模板时仍可返回 404，详情页不再依赖该接口显示 Health，不改变完整审计响应结构。
+
+区块列表仍按高度降序返回，并在响应前完成本批 Health 刷新；内部摘要重建每进程最多 4 个并发，同区块请求合并，当前数据库摘要读取绕过重建队列。公开请求／响应及 Unknown 语义不变。Core／Electrum 内部完整区块 RPC 优先使用 [getblock verbosity=3](https://bitcoincore.org/en/doc/30.0.0/rpc/blockchain/getblock/)，复用返回的 prevout；数据缺失保留原查询，明确的无效 verbosity（-8）回退为 2。其他 RPC／HTTP 错误不重试，Liquid 仍为 verbosity=2。
 
 内部 RPC 非 JSON、非 200 响应改为 `code: EHTTP`、`statusCode: <HTTP 状态>`；503 正文准确为 `Work queue depth exceeded` 时保留此固定原因，其余正文不进入错误消息。JSON-RPC 错误码、成功结果、认证和超时不变。
 

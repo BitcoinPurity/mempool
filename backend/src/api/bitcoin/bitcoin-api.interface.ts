@@ -85,6 +85,7 @@ export namespace IBitcoinApi {
   export interface Vin {
     txid?: string;                   //  (string) The transaction id
     vout?: number;                   //  (string)
+    prevout?: Pick<Vout, 'value' | 'scriptPubKey'>;
     scriptSig?: {                    //  (json object) The script
       asm: string;                   //  (string) asm
       hex: string;                   //  (string) hex

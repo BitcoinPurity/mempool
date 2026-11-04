@@ -4,7 +4,13 @@
 
 详情页的 Health 独立于 `blockAudit` 和模板可用性；优先使用区块 extras，同块审计分数可回退。可选审计查询的 404 不设置概览错误，其他错误仍保留。审计接口继续表示有模板的完整审计，不修改 JOIN 或创建空模板。
 
-`Blocks` 使用现有 pLimit(1) 限制历史摘要读取／重建，以区块哈希合并在途请求，finally 清理失败及成功任务。缓存命中与已有 CPFP 的新区块不等待历史任务。该限制是每进程的摘要级限制，不是所有 RPC 的全局限流；不改变既有 Esplora 后台分类循环。RPC 传输层区分 HTTP 错误与 JSON-RPC 错误，避免把非 JSON 503 标成无效参数。
+`Blocks` 使用现有 pLimit(4) 限制历史摘要重建，以区块哈希合并在途请求，finally 清理失败及成功任务。数据库摘要查找也包含在去重 Promise 内，但在进入重建队列前执行，因此当前版本的内存／数据库摘要命中与已有 CPFP 的新区块不等待历史任务。`$getBlocks` 收集 Health 刷新 Promise，在返回前统一等待，保留原有区块获取顺序。该限制是每进程的摘要级限制，不是所有 RPC 的全局限流；不改变既有 Esplora 后台分类循环。
+
+区块详情 `$getBlock` 在返回前等待 `$refreshBlockHealth`。数据库路径 `$indexBlock` → `BlocksRepository.$getBlockByHash` → `formatDbBlockIntoExtendedBlock` 还可能为了旧版分类标志重建摘要，缺失费用字段时也可能取完整区块。因此详情与 summary 都可能等待完整交易取数，不能将详情接口简单视为区块头读取；本次保留返回有效 Health／分类的语义，共用上述摘要取数优化。
+
+`BitcoinApi.$getTxsForBlock` 在非 Liquid 网络使用 getblock verbosity=3。交易输出和输入 prevout 共用原有输出转换规则；`$calculateFeeFromInputs` 优先使用已带回的 prevout，仅查询缺失项，再按原方式补内部脚本及计算手续费。节点明确以 RPC -8 拒绝 verbosity 时回退为 2；传输错误和其他 RPC 错误直接传播。Electrum 继承此路径，Liquid 保留 verbosity=2。无 undo 数据的历史块仍可能需要较多 RPC，未引入无限并发、线程池或额外配置。
+
+RPC 传输层区分 HTTP 错误与 JSON-RPC 错误，避免把非 JSON 503 标成无效参数。
 
 ## Purity 节点地图
 

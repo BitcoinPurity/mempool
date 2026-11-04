@@ -8,6 +8,8 @@
 
 前后端修复需按原发布流程部署。内部依赖旧伪造 -32602 处理 HTTP 故障的调用方应改用 EHTTP/statusCode。验证与限制见 TASK-010；未操作生产服务。
 
+2026-11-04 页面 Health 性能修复：原列表逐块 await Health、历史读取／重建全局串行，且 Core 的 getblock verbosity=2 后逐输入查询前序交易，可能使请求长时间等待 RPC。改为列表并发刷新、每进程最多 4 个历史重建，并让当前数据库摘要读取绕过队列；同块去重保留。非 Liquid 完整区块读取优先 verbosity=3，复用 prevout，减少数据齐全时的逐输入 RPC；缺失前序输出仍查询，明确拒绝 verbosity 时回退为 2，其他错误直接传播。无摘要版本升级、数据库迁移、新配置或历史批量扫描。需发布后端才能生效；本地测试不能证明服务器耗时或 CPU 利用率已经改善。
+
 首页移除 Ocean／Knots 卡片，添加整行 Purity 地图。新增两条本项目 API、配置及本地地理库读取，不需要数据库迁移或 Seeder 修改。
 
 部署准备：后端设置 `PURITY_SEEDER_API_TOKEN`；`PURITY_SEEDER.API_URL` 默认 `https://seeder.bitcoinpurity.org`；代理来源通过 `PURITY_SEEDER.TRUSTED_PROXIES` 明确配置；默认信任 loopback。提供 `MAXMIND.GEOLITE2_CITY` 文件，Docker 部署通过只读卷挂载。API 不要求启用 Lightning 或 ASN 数据库。

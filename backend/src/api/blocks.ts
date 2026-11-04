@@ -47,7 +47,7 @@ import { getBlockFirstSeenFromLogs, getOldestLogTimestampFromLogs, scanLogsForBl
 
 class Blocks {
   private summaryRebuilds = new Map<string, Promise<TransactionClassified[]>>();
-  private limitSummaryRebuild = pLimit(1);
+  private limitSummaryRebuild = pLimit(4);
   private blocks: BlockExtended[] = [];
   private blockSummaries: BlockSummary[] = [];
   private currentBlockHeight = 0;
@@ -1820,8 +1820,17 @@ class Blocks {
     }
     const pending = this.summaryRebuilds.get(hash);
     if (pending) return pending;
-    const rebuild = this.limitSummaryRebuild(() =>
-      this.$loadStrippedBlockTransactions(hash, skipMemoryCache, skipDBLookup, undefined, blockHeight));
+    const rebuild = (async (): Promise<TransactionClassified[]> => {
+      if (!skipDBLookup && Common.blocksSummariesIndexingEnabled()) {
+        const indexedSummary = await BlocksSummariesRepository.$getByBlockId(hash);
+        if (indexedSummary?.transactions?.length
+            && (indexedSummary.version ?? 0) >= Common.BLOCKS_SUMMARY_CLASSIFICATION_VERSION) {
+          return indexedSummary.transactions;
+        }
+      }
+      return this.limitSummaryRebuild(() =>
+        this.$loadStrippedBlockTransactions(hash, skipMemoryCache, true, undefined, blockHeight));
+    })();
     this.summaryRebuilds.set(hash, rebuild);
     try {
       return await rebuild;
@@ -1934,6 +1943,7 @@ class Blocks {
       currentHeight = this.currentBlockHeight;
     }
     const returnBlocks: BlockExtended[] = [];
+    const healthUpdates: Promise<void>[] = [];
 
     if (currentHeight < 0) {
       return returnBlocks;
@@ -1947,7 +1957,7 @@ class Blocks {
         if (block.extras) {
           // Always recompute from version bit (not cached value) to avoid stale data
           block.extras.bip110Signaling = Common.isSignalingBIP110(block.version);
-          await this.$refreshBlockHealth(block);
+          healthUpdates.push(this.$refreshBlockHealth(block));
           if (block.extras.poolLuck == null && block.extras.pool?.id != null) {
             block.extras.poolLuck = await mining.$getPoolRoundLuck(
               block.extras.pool.id,
@@ -1965,7 +1975,7 @@ class Blocks {
         // ($indexBlock only fetches coinbase, so violation data is always 0 without this)
         if (block.extras) {
           block.extras.bip110Signaling = Common.isSignalingBIP110(block.version);
-          await this.$refreshBlockHealth(block);
+          healthUpdates.push(this.$refreshBlockHealth(block));
           if (block.extras.poolLuck == null && block.extras.pool?.id != null) {
             block.extras.poolLuck = await mining.$getPoolRoundLuck(
               block.extras.pool.id,
@@ -1980,6 +1990,7 @@ class Blocks {
       currentHeight--;
     }
 
+    await Promise.all(healthUpdates);
     return returnBlocks;
   }
 

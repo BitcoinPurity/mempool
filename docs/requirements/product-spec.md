@@ -2,9 +2,15 @@
 
 ## REQ-010：轻量 Health 与摘要重建
 
+性能入口包括 `GET /api/v1/block/:hash/summary` 与 `GET /api/v1/block/:hash`。摘要接口直接读取／重建分类摘要；区块详情会等待 Health 刷新，数据库格式化历史块时也可能重建旧摘要。两者依赖相同摘要路径，单块冷重建的 RPC 等待与跨块排队需分别处理。
+
 区块详情优先读取 `block.extras.matchRate`，旧审计分数仅用于同一块的回退。没有模板时审计 404 是可选数据缺失，不隐藏 Health；分数未知显示 Unknown，0% 正常显示。完整 GBT 审计接口仍要求模板，不伪造审计结果。
 
-历史摘要重建每个后端进程最多一个在途任务，同区块请求共享 Promise，失败清理并允许重试。当前版本内存摘要直接返回，新区块已有 CPFP 数据的处理绕过历史队列。非 JSON RPC HTTP 错误使用 EHTTP 和 statusCode；只识别公开的队列溢出说明，不记录任意响应正文。保留现有超时、RPC JSON 错误及配置。
+历史摘要重建每个后端进程最多四个在途任务，同区块请求共享 Promise，失败清理并允许重试。当前版本内存／数据库摘要直接返回，新区块已有 CPFP 数据的处理绕过历史队列。列表同时刷新各块 Health，返回前等待完成并保留高度降序。
+
+Core／Electrum 的完整区块读取优先使用 getblock verbosity=3，将返回的前序输出转换为原有交易结构，保留金额单位、脚本、内部脚本与手续费计算。缺少 undo 前序输出时仍按原方式查询；仅对明确的无效 verbosity（RPC -8）回退为 2，不重试传输或区块读取错误。Liquid 仍使用 verbosity=2。Health 判定与摘要分类版本保持不变。
+
+非 JSON RPC HTTP 错误使用 EHTTP 和 statusCode；只识别公开的队列溢出说明，不记录任意响应正文。保留现有超时、RPC JSON 错误及配置。
 
 ## REQ-001：Purity 节点地图
 

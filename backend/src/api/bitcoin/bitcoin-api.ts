@@ -125,7 +125,17 @@ class BitcoinApi implements AbstractBitcoinApi {
 
   /** @asyncUnsafe */
   async $getTxsForBlock(hash: string, fallbackToCore = false): Promise<IEsploraApi.Transaction[]> {
-    const verboseBlock: IBitcoinApi.VerboseBlock = await this.bitcoindClient.getBlock(hash, 2);
+    let verboseBlock: IBitcoinApi.VerboseBlock;
+    const verbosity = Common.isLiquid() ? 2 : 3;
+    try {
+      verboseBlock = await this.bitcoindClient.getBlock(hash, verbosity);
+    } catch (e) {
+      const rpcError = e as { code?: number; message: string };
+      if (verbosity !== 3 || rpcError.code !== -8 || !/verbosity/i.test(rpcError.message)) {
+        throw e;
+      }
+      verboseBlock = await this.bitcoindClient.getBlock(hash, 2);
+    }
     const transactions: IEsploraApi.Transaction[] = [];
     for (const tx of verboseBlock.tx) {
       const converted = await this.$convertTransaction(tx, true, false, verboseBlock.confirmations === -1);
@@ -314,7 +324,7 @@ class BitcoinApi implements AbstractBitcoinApi {
       status: { confirmed: false },
     };
 
-    esploraTransaction.vout = transaction.vout.map((vout) => {
+    const convertOutput = (vout: Pick<IBitcoinApi.Vout, 'value' | 'scriptPubKey'>): IEsploraApi.Vout => {
       return {
         value: Math.round(vout.value * 100000000),
         scriptpubkey: vout.scriptPubKey.hex,
@@ -323,12 +333,13 @@ class BitcoinApi implements AbstractBitcoinApi {
         scriptpubkey_asm: vout.scriptPubKey.asm ? transactionUtils.convertScriptSigAsm(vout.scriptPubKey.hex) : '',
         scriptpubkey_type: this.translateScriptPubKeyType(vout.scriptPubKey.type),
       };
-    });
+    };
+    esploraTransaction.vout = transaction.vout.map(convertOutput);
 
     esploraTransaction.vin = transaction.vin.map((vin) => {
       return {
         is_coinbase: !!vin.coinbase,
-        prevout: null,
+        prevout: addPrevout && vin.prevout ? convertOutput(vin.prevout) : null,
         scriptsig: vin.scriptSig && vin.scriptSig.hex || vin.coinbase || '',
         scriptsig_asm: vin.scriptSig ? transactionUtils.convertScriptSigAsm(vin.scriptSig.hex) : (vin.coinbase ? transactionUtils.convertScriptSigAsm(vin.coinbase) : ''),
         sequence: vin.sequence,
@@ -478,10 +489,13 @@ class BitcoinApi implements AbstractBitcoinApi {
         transaction.vin[i].lazy = true;
         continue;
       }
-      const innerTx = await this.$getRawTransaction(transaction.vin[i].txid, false, false);
-      transaction.vin[i].prevout = innerTx.vout[transaction.vin[i].vout];
-      transactionUtils.addInnerScriptsToVin(transaction.vin[i]);
-      totalIn += innerTx.vout[transaction.vin[i].vout].value;
+      const vin = transaction.vin[i];
+      if (!vin.prevout) {
+        const innerTx = await this.$getRawTransaction(vin.txid, false, false);
+        vin.prevout = innerTx.vout[vin.vout];
+      }
+      transactionUtils.addInnerScriptsToVin(vin);
+      totalIn += vin.prevout.value;
     }
     if (lazyPrevouts && transaction.vin.length > 12) {
       transaction.fee = -1;

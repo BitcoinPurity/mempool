@@ -89,7 +89,7 @@ describe('Health classification cache upgrades', () => {
     expect(transactionUtils.extendTransaction).not.toHaveBeenCalled();
     expect((audits as any).$setHealth).toHaveBeenCalledWith('block', 100);
   });
-  test('shares a rebuild and serializes different blocks, then allows retries after failure', async () => {
+  test('shares a rebuild and allows different blocks to run concurrently, then retries after failure', async () => {
     const cache = new (blocks.constructor as any)();
     jest.spyOn(Common, 'blocksSummariesIndexingEnabled').mockReturnValue(false);
     jest.spyOn(Common, 'auditIndexingEnabled').mockReturnValue(false);
@@ -104,12 +104,86 @@ describe('Health classification cache upgrades', () => {
     const other = cache.$getStrippedBlockTransactions('second', true, true, undefined, 101);
     const settled = Promise.allSettled([first, shared, other]);
     await new Promise(resolve => setImmediate(resolve));
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
     fail!(new Error('overloaded'));
     const results = await settled;
     expect(results.map(r => r.status)).toEqual(['rejected', 'rejected', 'fulfilled']);
     await cache.$getStrippedBlockTransactions('first', true, true, undefined, 100);
     expect(fetch).toHaveBeenCalledTimes(3);
+  });
+  test('bounds historical rebuilds to four active blocks', async () => {
+    const cache = new (blocks.constructor as any)();
+    jest.spyOn(Common, 'blocksSummariesIndexingEnabled').mockReturnValue(false);
+    jest.spyOn(Common, 'auditIndexingEnabled').mockReturnValue(false);
+    const releases: ((txs: any[]) => void)[] = [];
+    const fetch = bitcoinApi.$getTxsForBlock as jest.Mock;
+    fetch.mockReset().mockImplementation(() => new Promise(resolve => { releases.push(resolve); }));
+    jest.spyOn(cache, 'summarizeBlockTransactions').mockReturnValue(summary());
+    const requests = Array.from({ length: 5 }, (_, i) =>
+      cache.$getStrippedBlockTransactions(`old-${i}`, true, true, undefined, 100 - i));
+    await new Promise(resolve => setImmediate(resolve));
+    const active = fetch.mock.calls.length;
+    releases.splice(0).forEach(release => release([]));
+    await new Promise(resolve => setImmediate(resolve));
+    while (releases.length) {
+      releases.splice(0).forEach(release => release([]));
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    await Promise.all(requests);
+    expect(active).toBe(4);
+    expect(fetch).toHaveBeenCalledTimes(5);
+  });
+  test('serves a current database summary while all rebuild slots are occupied', async () => {
+    const cache = new (blocks.constructor as any)();
+    jest.spyOn(Common, 'blocksSummariesIndexingEnabled').mockReturnValue(true);
+    jest.spyOn(Common, 'auditIndexingEnabled').mockReturnValue(false);
+    (summaries.$getByBlockId as jest.Mock).mockImplementation(async hash =>
+      hash === 'stored' ? summary() : undefined);
+    const releases: ((txs: any[]) => void)[] = [];
+    const fetch = bitcoinApi.$getTxsForBlock as jest.Mock;
+    fetch.mockReset().mockImplementation(() => new Promise(resolve => { releases.push(resolve); }));
+    jest.spyOn(cache, 'summarizeBlockTransactions').mockReturnValue(summary());
+    const requests = Array.from({ length: 4 }, (_, i) =>
+      cache.$getStrippedBlockTransactions(`old-${i}`, true, false, undefined, 100 - i));
+    await new Promise(resolve => setImmediate(resolve));
+    let served = false;
+    const stored = cache.$getStrippedBlockTransactions('stored', false, false, undefined, 90)
+      .then(txs => { served = true; return txs; });
+    await new Promise(resolve => setImmediate(resolve));
+    const servedBeforeRelease = served;
+    while (releases.length) {
+      releases.splice(0).forEach(release => release([]));
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    await Promise.all(requests);
+    expect(await stored).toEqual(summary().transactions);
+    expect(servedBeforeRelease).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+  test.each(['memory', 'indexed'])('refreshes %s list Health concurrently and preserves descending block order', async source => {
+    const cache = new (blocks.constructor as any)();
+    cache.currentBlockHeight = 102;
+    const blockList = [100, 101, 102].map(height => ({ ...block(), id: `block-${height}`, height }));
+    if (source === 'memory') {
+      cache.setBlocks(blockList);
+    } else {
+      jest.spyOn(cache, '$indexBlockByHeight').mockImplementation((height: unknown) =>
+        Promise.resolve(blockList.find(item => item.height === height)));
+    }
+    const releases: (() => void)[] = [];
+    const refresh = jest.spyOn(cache, '$refreshBlockHealth').mockImplementation((...args: any[]) =>
+      new Promise<void>(resolve => releases.push(() => { args[0].extras.matchRate = 100; resolve(); })));
+    const result = cache.$getBlocks(102, 3);
+    await new Promise(resolve => setImmediate(resolve));
+    const started = refresh.mock.calls.length;
+    while (releases.length) {
+      releases.splice(0).reverse().forEach(release => release());
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    const list = await result;
+    expect(started).toBe(3);
+    expect(list.map(item => item.height)).toEqual([102, 101, 100]);
+    expect(list.map(item => item.extras.matchRate)).toEqual([100, 100, 100]);
   });
   test('does not block current cached summaries or new-block CPFP processing behind historical rebuilds', async () => {
     const cache = new (blocks.constructor as any)();
