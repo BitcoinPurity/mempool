@@ -182,6 +182,15 @@ interface IConfig {
   PURITY_SEEDER: {
     API_URL: string;
     TRUSTED_PROXIES: string[];
+  },
+  SUPPLY_DISTRIBUTION: {
+    ENABLED: boolean;
+    DATABASE: string;
+    CONFIRMATIONS: number;
+    TOP_N: number;
+    SNAPSHOT_DIR: string;
+    TEMP_DIR: string;
+    DUMP_TIMEOUT: number;
   }
 }
 
@@ -362,8 +371,48 @@ const defaults: IConfig = {
   'PURITY_SEEDER': {
     'API_URL': 'https://seeder.bitcoinpurity.org',
     'TRUSTED_PROXIES': ['127.0.0.1/32', '::1/128'],
+  },
+  'SUPPLY_DISTRIBUTION': {
+    'ENABLED': false,
+    'DATABASE': 'mempool_supply',
+    'CONFIRMATIONS': 6,
+    'TOP_N': 10000,
+    'SNAPSHOT_DIR': '',
+    'TEMP_DIR': '',
+    'DUMP_TIMEOUT': 10800000,
   }
 };
+
+function validateSupplyDistributionConfig(network: string, configs: IConfig): void {
+  const supply = configs.SUPPLY_DISTRIBUTION;
+  if (!supply.ENABLED) {
+    return;
+  }
+  if (!configs.DATABASE.ENABLED) {
+    throw new Error('SUPPLY_DISTRIBUTION requires DATABASE.ENABLED');
+  }
+  if (typeof supply.DATABASE !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(supply.DATABASE)) {
+    throw new Error('Invalid SUPPLY_DISTRIBUTION.DATABASE');
+  }
+  if (supply.DATABASE === configs.DATABASE.DATABASE) {
+    throw new Error('SUPPLY_DISTRIBUTION.DATABASE must differ from DATABASE.DATABASE');
+  }
+  if (network === 'signet' && supply.DATABASE === 'mempool_supply') {
+    throw new Error('Purity Signet requires a separate SUPPLY_DISTRIBUTION.DATABASE from Mainnet');
+  }
+  if (typeof supply.SNAPSHOT_DIR !== 'string' || !path.isAbsolute(supply.SNAPSHOT_DIR)) {
+    throw new Error('SUPPLY_DISTRIBUTION.SNAPSHOT_DIR must be an absolute path');
+  }
+  if (!Number.isSafeInteger(supply.CONFIRMATIONS) || supply.CONFIRMATIONS < 1 || supply.CONFIRMATIONS > 100) {
+    throw new Error('SUPPLY_DISTRIBUTION.CONFIRMATIONS must be an integer between 1 and 100');
+  }
+  if (!Number.isSafeInteger(supply.TOP_N) || supply.TOP_N < 1 || supply.TOP_N > 100000) {
+    throw new Error('SUPPLY_DISTRIBUTION.TOP_N must be an integer between 1 and 100000');
+  }
+  if (!Number.isSafeInteger(supply.DUMP_TIMEOUT) || supply.DUMP_TIMEOUT < 60000) {
+    throw new Error('SUPPLY_DISTRIBUTION.DUMP_TIMEOUT must be at least 60000 ms');
+  }
+}
 
 class Config implements IConfig {
   MEMPOOL: IConfig['MEMPOOL'];
@@ -388,6 +437,7 @@ class Config implements IConfig {
   STRATUM: IConfig['STRATUM'];
   PURITY: IConfig['PURITY'];
   PURITY_SEEDER: IConfig['PURITY_SEEDER'];
+  SUPPLY_DISTRIBUTION: IConfig['SUPPLY_DISTRIBUTION'];
 
   constructor() {
     const network = configFromFile.MEMPOOL?.NETWORK ?? defaults.MEMPOOL.NETWORK;
@@ -402,6 +452,7 @@ class Config implements IConfig {
       defaults.SECOND_CORE_RPC.COOKIE_PATH = '/bitcoin/signet/.cookie';
       defaults.ELECTRUM.PORT = 60601;
       defaults.ELECTRUM.TLS_ENABLED = false;
+      defaults.SUPPLY_DISTRIBUTION.DATABASE = 'mempool_signet_supply';
     }
     const configs = this.merge(configFromFile, defaults);
     if (network === 'signet' &&
@@ -409,6 +460,7 @@ class Config implements IConfig {
          (configs.MEMPOOL.CACHE_ENABLED && path.resolve(configs.MEMPOOL.CACHE_DIR) === path.resolve('./cache')))) {
       throw new Error('Purity Signet requires a separate database and CACHE_DIR from Mainnet');
     }
+    validateSupplyDistributionConfig(network, configs);
     this.MEMPOOL = configs.MEMPOOL;
     this.ESPLORA = configs.ESPLORA;
     this.ELECTRUM = configs.ELECTRUM;
@@ -431,6 +483,7 @@ class Config implements IConfig {
     this.STRATUM = configs.STRATUM;
     this.PURITY = configs.PURITY;
     this.PURITY_SEEDER = configs.PURITY_SEEDER;
+    this.SUPPLY_DISTRIBUTION = configs.SUPPLY_DISTRIBUTION;
   }
 
   merge = (...objects: object[]): IConfig => {

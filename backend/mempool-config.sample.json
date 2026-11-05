@@ -171,6 +171,15 @@
     "API_URL": "https://seeder.bitcoinpurity.org",
     "TRUSTED_PROXIES": ["127.0.0.1/32", "::1/128"]
   },
+  "SUPPLY_DISTRIBUTION": {
+    "ENABLED": false,
+    "DATABASE": "mempool_supply",
+    "CONFIRMATIONS": 6,
+    "TOP_N": 10000,
+    "SNAPSHOT_DIR": "/var/lib/purity-supply",
+    "TEMP_DIR": "",
+    "DUMP_TIMEOUT": 10800000
+  },
   "FIAT_PRICE": {
     "ENABLED": true,
     "PAID": false,

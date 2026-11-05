@@ -1,5 +1,5 @@
-import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
+import { NgModule, inject } from '@angular/core';
+import { CanActivateFn, Router, RouterModule, Routes } from '@angular/router';
 import { BlockHealthGraphComponent } from '@components/block-health-graph/block-health-graph.component';
 import { BlockFeeRatesGraphComponent } from '@components/block-fee-rates-graph/block-fee-rates-graph.component';
 import { BlockFeesGraphComponent } from '@components/block-fees-graph/block-fees-graph.component';
@@ -25,6 +25,8 @@ import { AccelerationsListComponent } from '@components/acceleration/acceleratio
 import { AddressComponent } from '@components/address/address.component';
 import { WalletComponent } from '@components/wallet/wallet.component';
 import { CalculatorComponent } from '@components/calculator/calculator.component';
+import { SupplyDistributionComponent } from '@components/supply-distribution/supply-distribution.component';
+import { StateService, supplyDistributionNetworks } from '@app/services/state.service';
 
 const browserWindow = window || {};
 // @ts-ignore
@@ -205,6 +207,22 @@ if (window['__env']?.OFFICIAL_MEMPOOL_SPACE) {
         networkSpecific: true,
       },
     }]
+  });
+}
+
+// The graphs module is shared by every network; only networks whose backend runs Supply Distribution get the page.
+const supplyNetworkGuard: CanActivateFn = () => {
+  const stateService = inject(StateService);
+  return stateService.isSupplyDistributionEnabled() ||
+    inject(Router).createUrlTree([stateService.network ? '/' + stateService.network : '/']);
+};
+
+if (supplyDistributionNetworks(browserWindowEnv?.SUPPLY_DISTRIBUTION_NETWORKS).length) {
+  routes[0].children?.unshift({
+    path: 'supply',
+    data: { networks: ['bitcoin'] },
+    canActivate: [supplyNetworkGuard],
+    component: SupplyDistributionComponent,
   });
 }
 

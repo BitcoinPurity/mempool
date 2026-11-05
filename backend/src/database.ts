@@ -6,12 +6,20 @@ import logger, { LogLevel } from './logger';
 import { FieldPacket, OkPacket, PoolOptions, ResultSetHeader, RowDataPacket } from 'mysql2/typings/mysql';
 import { execSync } from 'child_process';
 
- class DB {
-  constructor() {
+export interface DBOptions {
+  /** Override the database name while reusing the main DATABASE connection settings. */
+  database?: string;
+}
+
+export class DB {
+  constructor(options: DBOptions = {}) {
     if (config.DATABASE.SOCKET !== '') {
       this.poolConfig.socketPath = config.DATABASE.SOCKET;
     } else {
       this.poolConfig.host = config.DATABASE.HOST;
+    }
+    if (options.database !== undefined) {
+      this.poolConfig.database = options.database;
     }
   }
   private pool: Pool | null = null;
@@ -121,6 +129,31 @@ import { execSync } from 'child_process';
     }
   }
 
+
+  /**
+   * Run a callback inside one transaction on a dedicated connection. The callback may read,
+   * compute and write; any thrown error rolls the whole transaction back and is rethrown.
+   */
+  /** @asyncUnsafe */
+  public async $withTransaction<T>(callback: (connection: PoolConnection) => Promise<T>): Promise<T> {
+    const pool = await this.getPool();
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const result = await callback(connection);
+      await connection.commit();
+      return result;
+    } catch (e) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        logger.warn('Failed to rollback incomplete db transaction: ' + (rollbackError instanceof Error ? rollbackError.message : rollbackError));
+      }
+      throw e;
+    } finally {
+      connection.release();
+    }
+  }
 
   /** @asyncSafe */
   public async checkDbConnection() {

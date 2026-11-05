@@ -48,6 +48,7 @@ import { AddressesTreemap } from '@components/addresses-treemap/addresses-treema
 import { TaprootAddressScriptsComponent } from '@components/taproot-address-scripts/taproot-address-scripts.component';
 import { CommonModule } from '@angular/common';
 import { AsmStylerPipe } from '@app/shared/pipes/asm-styler/asm-styler.pipe';
+import { SupplyDistributionComponent } from '@components/supply-distribution/supply-distribution.component';
 
 @NgModule({
   declarations: [
@@ -95,6 +96,7 @@ import { AsmStylerPipe } from '@app/shared/pipes/asm-styler/asm-styler.pipe';
     ActiveAccelerationBox,
     AddressesTreemap,
     TaprootAddressScriptsComponent,
+    SupplyDistributionComponent,
   ],
   imports: [
     CommonModule,

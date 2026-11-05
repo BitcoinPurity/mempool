@@ -1,0 +1,153 @@
+<div class="container-xl full-height" data-cy="supply-distribution">
+  <div class="page-header">
+    <h1 i18n="@@supply.title">Supply Distribution</h1>
+    <div *ngIf="isLoading" class="spinner-border" role="status"></div>
+  </div>
+
+  <p class="intro text-muted" i18n="@@supply.intro">
+    The full coin supply since the genesis block, counted per output script (address). Scripts are not grouped by owner,
+    so an address is not an entity.
+  </p>
+
+  <div *ngIf="error === 'no_data'" class="alert alert-info" data-cy="supply-no-data" i18n="@@supply.no-data">
+    Supply data is being prepared. It appears once the initial UTXO snapshot has been loaded.
+  </div>
+  <div *ngIf="error === 'error' && !distribution" class="alert alert-danger" data-cy="supply-error" i18n="@@supply.load-error">
+    Unable to load supply data. Please try again later.
+  </div>
+
+  <ng-container *ngIf="distribution as d">
+    <div *ngIf="d.status === 'bootstrapping'" class="alert alert-info" data-cy="supply-status-bootstrapping" i18n="@@supply.status-bootstrapping">
+      The initial snapshot is waiting for {{ d.confirmations }} confirmations before live updates start.
+    </div>
+    <div *ngIf="d.status === 'stale'" class="alert alert-warning" data-cy="supply-status-stale" i18n="@@supply.status-stale">
+      Updates are paused while the supply data is rebuilt. Figures below are from block {{ d.height }}.
+    </div>
+
+    <div class="overview" data-cy="supply-overview">
+      <div class="overview-item">
+        <div class="label" i18n="@@supply.data-height">Data as of block</div>
+        <div class="value">
+          <a [routerLink]="['/block/' | relativeUrl, d.hash]" data-cy="supply-height">{{ d.height | number }}</a>
+        </div>
+        <div class="hint" i18n="@@supply.confirmations-hint">Latest block − {{ d.confirmations }}</div>
+      </div>
+      <div class="overview-item">
+        <div class="label" i18n="@@supply.utxo-supply">Coins in UTXO set</div>
+        <div class="value"><app-amount [satoshis]="d.totalAmount" digitsInfo="1.0-2" [noFiat]="true"></app-amount></div>
+        <div class="hint">{{ percent(d.totalAmount, d.maxSupply) | number: '1.2-2' }}% <ng-container i18n="@@supply.of-max-supply">of 21M</ng-container></div>
+      </div>
+      <div class="overview-item">
+        <div class="label" i18n="@@supply.issued">Issued by schedule</div>
+        <div class="value"><app-amount [satoshis]="d.issuedAmount" digitsInfo="1.0-2" [noFiat]="true"></app-amount></div>
+        <div class="hint">{{ percent(d.issuedAmount, d.maxSupply) | number: '1.2-2' }}% <ng-container i18n="@@supply.of-max-supply">of 21M</ng-container></div>
+      </div>
+      <div class="overview-item">
+        <div class="label" i18n="@@supply.funded-addresses">Addresses with a balance</div>
+        <div class="value" data-cy="supply-funded-addresses">{{ d.nonZeroScriptCount | number }}</div>
+        <div class="hint"><ng-container i18n="@@supply.zero-balance">Zero-value only</ng-container>: {{ d.zeroBalanceScripts | number }}</div>
+      </div>
+      <div class="overview-item">
+        <div class="label" i18n="@@supply.utxos">UTXOs</div>
+        <div class="value">{{ d.utxoCount | number }}</div>
+      </div>
+    </div>
+
+    <div class="card-section" *ngIf="d.tiers?.length" data-cy="supply-tiers">
+      <div class="section-header">
+        <h2 i18n="@@supply.concentration">Holder concentration</h2>
+      </div>
+      <div class="concentration">
+        <div class="donut" *browserOnly echarts [initOpts]="chartInitOptions" [options]="tierChartOptions" data-cy="supply-tier-chart"></div>
+        <ul class="tier-legend">
+          <li *ngFor="let tier of d.tiers; let i = index; trackBy: trackByTier">
+            <span class="dot" [style.background-color]="tierColor(tier, i)"></span>
+            <span class="name">{{ tierLabel(tier) }}</span>
+            <span class="share">{{ percent(tier.amount, d.totalAmount) | number: '1.1-2' }}%</span>
+            <span class="amount"><app-amount [satoshis]="tier.amount" digitsInfo="1.0-0" [noFiat]="true"></app-amount></span>
+          </li>
+        </ul>
+      </div>
+      <p class="text-muted small mb-0" i18n="@@supply.concentration-hint">Share of the supply held by addresses at each rank. Ranks are per output script, not per owner.</p>
+    </div>
+
+    <div class="card-section">
+      <div class="section-header">
+        <h2 i18n="@@supply.by-balance">Distribution by balance</h2>
+        <div class="btn-group" role="group">
+          <input type="radio" class="btn-check" id="supply-metric-amount" [checked]="metric === 'amount'" (change)="setMetric('amount')">
+          <label class="btn btn-primary btn-sm" for="supply-metric-amount" i18n="@@supply.amount">Amount</label>
+          <input type="radio" class="btn-check" id="supply-metric-scripts" [checked]="metric === 'scripts'" (change)="setMetric('scripts')">
+          <label class="btn btn-primary btn-sm" for="supply-metric-scripts" i18n="@@supply.addresses">Addresses</label>
+        </div>
+      </div>
+      <div class="chart" *browserOnly echarts [initOpts]="chartInitOptions" [options]="chartOptions" data-cy="supply-chart"></div>
+
+      <div class="table-responsive">
+        <table class="table table-borderless table-striped buckets" data-cy="supply-buckets">
+          <thead>
+            <tr>
+              <th i18n="@@supply.balance-range">Balance (BTC)</th>
+              <th class="text-end" i18n="@@supply.addresses">Addresses</th>
+              <th class="text-end d-none d-md-table-cell" i18n="@@supply.addresses-share">% Addresses</th>
+              <th class="text-end" i18n="@@supply.amount">Amount</th>
+              <th class="text-end" i18n="@@supply.supply-share">% Supply</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let bucket of d.buckets; trackBy: trackByBucket">
+              <td>{{ bucketLabel(bucket) }}</td>
+              <td class="text-end">{{ bucket.scriptCount | number }}</td>
+              <td class="text-end d-none d-md-table-cell">{{ percent(bucket.scriptCount, d.scriptCount) | number: '1.2-2' }}%</td>
+              <td class="text-end"><app-amount [satoshis]="bucket.amount" digitsInfo="1.0-0" [noFiat]="true"></app-amount></td>
+              <td class="text-end">{{ percent(bucket.amount, d.totalAmount) | number: '1.2-2' }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card-section" *ngIf="top as t">
+      <div class="section-header">
+        <h2 i18n="@@supply.top-addresses">Top Addresses</h2>
+        <span class="text-muted small" i18n="@@supply.top-hint">Top {{ t.total | number }} by balance</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-borderless table-striped top" data-cy="supply-top">
+          <thead>
+            <tr>
+              <th class="rank" i18n="@@supply.rank">Rank</th>
+              <th i18n="@@supply.address">Address</th>
+              <th class="d-none d-lg-table-cell" i18n="address.type">Type</th>
+              <th class="text-end" i18n="@@supply.balance">Balance</th>
+              <th class="text-end d-none d-sm-table-cell" i18n="@@supply.supply-share">% Supply</th>
+              <th class="text-end d-none d-md-table-cell" i18n="@@supply.utxos">UTXOs</th>
+            </tr>
+          </thead>
+          <tbody [style.opacity]="isLoading ? 0.6 : 1">
+            <tr *ngFor="let row of t.rows; trackBy: trackByRank">
+              <td class="rank">{{ row.rank | number }}</td>
+              <td class="address">
+                <app-truncate *ngIf="row.address; else scriptCell" [text]="row.address" [lastChars]="8"
+                  [link]="['/address/' | relativeUrl, row.address]"></app-truncate>
+                <ng-template #scriptCell>
+                  <span class="script" [title]="row.script">
+                    <ng-container i18n="@@supply.script">Script</ng-container> {{ row.script | slice: 0 : 24 }}…
+                  </span>
+                </ng-template>
+              </td>
+              <td class="d-none d-lg-table-cell"><span class="badge bg-secondary">{{ row.type }}</span></td>
+              <td class="text-end"><app-amount [satoshis]="row.balance" digitsInfo="1.0-4" [noFiat]="true"></app-amount></td>
+              <td class="text-end d-none d-sm-table-cell">{{ percent(row.balance, t.totalAmount) | number: '1.2-4' }}%</td>
+              <td class="text-end d-none d-md-table-cell">{{ row.utxoCount | number }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ngb-pagination class="pagination-container float-end mt-2" [collectionSize]="t.total" [pageSize]="pageSize"
+        [page]="page" (pageChange)="pageChange($event)" [rotate]="true" [maxSize]="paginationMaxSize"
+        [boundaryLinks]="true" [ellipses]="false"></ngb-pagination>
+      <div class="clearfix"></div>
+    </div>
+  </ng-container>
+</div>
