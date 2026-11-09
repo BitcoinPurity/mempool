@@ -45,6 +45,9 @@ class PoolsParser {
 
     let reindexUnknown = false;
     let clearCache = false;
+    // Reindex only after every pool is inserted/updated, so blocks released by one
+    // pool can be matched against pools that appear later in the same import
+    const poolsToReindex: number[] = [];
 
 
     for (const pool of this.miningPools) {
@@ -104,9 +107,13 @@ class PoolsParser {
           await PoolsRepository.$updateMiningPoolTags(poolDB.id, pool.addresses, pool.regexes);
           reindexUnknown = true;
           clearCache = true;
-          await this.$reindexBlocksForPool(poolDB.id);
+          poolsToReindex.push(poolDB.id);
         }
       }
+    }
+
+    for (const poolId of poolsToReindex) {
+      await this.$reindexBlocksForPool(poolId);
     }
 
     if (reindexUnknown) {
@@ -211,23 +218,34 @@ class PoolsParser {
     `, [poolId, firstKnownBlockPool]);
 
     let pools: PoolTag[] = [];
+    let unknownPoolId: number;
     if (config.DATABASE.ENABLED === true) {
       pools = await PoolsRepository.$getPools();
+      unknownPoolId = (await PoolsRepository.$getUnknownPool()).id;
     } else {
       pools = this.miningPools;
+      unknownPoolId = this.unknownPool.id;
     }
 
     let changed = 0;
+    let released = 0;
     for (const block of blocks) {
       const addresses = JSON.parse(block.coinbase_addresses) || [];
       const newPool = this.matchBlockMiner(block.coinbase_raw, addresses, pools);
-      if (newPool && newPool.id !== poolId) {
-        changed++;
-        await BlocksRepository.$savePool(block.hash, newPool.id);
+      // A block that no longer matches any pool (e.g. its pool's tags/addresses were
+      // narrowed) must fall back to Unknown instead of staying with the old pool
+      const newPoolId = newPool ? newPool.id : unknownPoolId;
+      if (newPoolId !== poolId) {
+        if (newPool) {
+          changed++;
+        } else {
+          released++;
+        }
+        await BlocksRepository.$savePool(block.hash, newPoolId);
       }
     }
 
-    logger.info(`${changed} blocks assigned to a new pool`, logger.tags.mining);
+    logger.info(`${changed} blocks assigned to a new pool, ${released} blocks moved to Unknown`, logger.tags.mining);
 
     // Re-index hashrates and difficulty adjustments later
     mining.reindexHashrateRequested = true;
