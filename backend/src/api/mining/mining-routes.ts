@@ -12,11 +12,22 @@ import AccelerationRepository from '../../repositories/AccelerationRepository';
 import accelerationApi from '../services/acceleration';
 import { handleError } from '../../utils/api';
 
+const POOLS_CACHE_SECONDS = 60;
+
+interface PoolsResponse {
+  stats: object;
+  blockCount: number;
+  expiresAt: number;
+}
+
 class MiningRoutes {
+  private monthlyPoolsCache?: PoolsResponse;
+  private monthlyPoolsRefresh?: Promise<PoolsResponse>;
+
   public initRoutes(app: Application) {
     app
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pools', this.$listPools)
-      .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pools/:interval', this.$getPools)
+      .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pools/:interval', this.$getPools.bind(this))
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/hashrate', this.$getPoolHistoricalHashrate)
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/blocks', this.$getPoolBlocks)
       .get(config.MEMPOOL.API_URL_PREFIX + 'mining/pool/:slug/blocks/:height', this.$getPoolBlocks)
@@ -134,15 +145,38 @@ class MiningRoutes {
     }
   }
 
-  private async $getPools(req: Request, res: Response) {
+  /** @asyncUnsafe */
+  private async $loadPools(interval: string): Promise<PoolsResponse> {
+    const stats = await mining.$getPoolsStats(interval);
+    const blockCount = await BlocksRepository.$blockCount(null, null);
+    return { stats, blockCount, expiresAt: Date.now() + POOLS_CACHE_SECONDS * 1000 };
+  }
+
+  private async $getPools(req: Request, res: Response): Promise<void> {
     try {
-      const stats = await mining.$getPoolsStats(req.params.interval);
-      const blockCount = await BlocksRepository.$blockCount(null, null);
+      const interval = req.params.interval;
+      const isMonthly = interval === '1m';
+      let pools: PoolsResponse;
+      if (!isMonthly) {
+        pools = await this.$loadPools(interval);
+      } else if (this.monthlyPoolsCache && this.monthlyPoolsCache.expiresAt > Date.now()) {
+        pools = this.monthlyPoolsCache;
+      } else {
+        this.monthlyPoolsRefresh ??= this.$loadPools(interval).then((freshPools) => {
+          this.monthlyPoolsCache = freshPools;
+          return freshPools;
+        }).finally(() => {
+          this.monthlyPoolsRefresh = undefined;
+        });
+        pools = await this.monthlyPoolsRefresh;
+      }
+
+      const maxAge = Math.max(0, Math.floor((pools.expiresAt - Date.now()) / 1000));
       res.header('Pragma', 'public');
-      res.header('Cache-control', 'public');
-      res.header('X-total-count', blockCount.toString());
-      res.setHeader('Expires', new Date(Date.now() + 1000 * 60).toUTCString());
-      res.json(stats);
+      res.header('Cache-control', isMonthly ? `public, max-age=${maxAge}` : 'public');
+      res.header('X-total-count', pools.blockCount.toString());
+      res.setHeader('Expires', new Date(pools.expiresAt).toUTCString());
+      res.json(pools.stats);
     } catch (e) {
       handleError(req, res, 500, 'Failed to get pools');
     }

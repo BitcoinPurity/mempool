@@ -360,7 +360,7 @@ class BlocksRepository {
     interval = Common.getSqlInterval(interval);
 
     const params: any[] = [];
-    let query = `SELECT count(height) as blockCount
+    let query = `SELECT COUNT(*) as blockCount
       FROM blocks 
       WHERE stale = 0`;
 
