@@ -68,7 +68,7 @@ src/resources/**/*.vtt
 src/resources/customize.js
 
 # environment config
-mempool-frontend-config.json
+# mempool-frontend-config.json
 generated-config.js
 
 # e2e results
