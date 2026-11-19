@@ -132,3 +132,77 @@ test('nonlocalized routes keep existing asset handling', async () => {
   assert.equal(url, '/cdn-cgi/trace');
   assert.equal(await response.text(), 'trace');
 });
+
+
+test('Signet v1 API requests use dedicated Tunnel and keep query parameters', async () => {
+  const { response, captured } = await captureRequest(
+    new Request('https://mempool-stage.bitcoinpurity.org/signet/api/v1/init-data?test=one')
+  );
+  assert.equal(response.status, 200);
+  assert.equal(captured.url, 'https://signet-api.bitcoinpurity.org/api/v1/init-data?test=one');
+});
+
+test('Signet block height API is routed to Signet rather than the mainnet LB', async () => {
+  const { captured } = await captureRequest(
+    new Request('https://mempool-stage.bitcoinpurity.org/signet/api/v1/blocks/tip/height')
+  );
+  assert.equal(captured.url, 'https://signet-api.bitcoinpurity.org/api/v1/blocks/tip/height');
+});
+
+test('Signet legacy Esplora-style requests map to backend electrum API', async () => {
+  const { captured } = await captureRequest(
+    new Request('https://mempool-stage.bitcoinpurity.org/signet/api/tx/abc?verbose=1')
+  );
+  assert.equal(captured.url, 'https://signet-api.bitcoinpurity.org/api/v1/tx/abc?verbose=1');
+});
+
+test('Signet WebSocket rejects non-upgrade HTTP requests', async () => {
+  const response = await worker.fetch(
+    new Request('https://mempool-stage.bitcoinpurity.org/signet/api/v1/ws'),
+    { ASSETS: { fetch() { throw new Error('Unexpected static asset request'); } } }
+  );
+  assert.equal(response.status, 426);
+});
+
+test('Signet WebSocket upgrade targets Signet backend root', async () => {
+  const { captured } = await captureRequest(new Request(
+    'https://mempool-stage.bitcoinpurity.org/signet/api/v1/ws',
+    { headers: { Upgrade: 'websocket', Connection: 'Upgrade' } }
+  ));
+  assert.equal(captured.url, 'https://signet-api.bitcoinpurity.org/');
+  assert.equal(captured.headers.get('upgrade'), 'websocket');
+});
+
+test('Signet POST method, body and query are preserved', async () => {
+  const { captured } = await captureRequest(new Request(
+    'https://mempool-stage.bitcoinpurity.org/signet/api/tx?maxfeerate=0.1',
+    { method: 'POST', body: '0200000001' }
+  ));
+  assert.equal(captured.url, 'https://signet-api.bitcoinpurity.org/api/v1/tx?maxfeerate=0.1');
+  assert.equal(captured.method, 'POST');
+  assert.equal(await captured.text(), '0200000001');
+});
+
+test('Signet internal APIs are not proxied', async () => {
+  for (const path of [
+    '/signet/api/internal/config',
+    '/signet/api/v1/internal/blocks',
+    '/signet/api/v1/internal'
+  ]) {
+    const response = await worker.fetch(
+      new Request('https://mempool-stage.bitcoinpurity.org' + path),
+      { ASSETS: { fetch() { throw new Error('Unexpected static asset request'); } } }
+    );
+    assert.equal(response.status, 404, path);
+  }
+});
+
+test('Direct Signet page navigations are still served by the localized SPA fallback', async () => {
+  const seen = [];
+  const response = await worker.fetch(
+    new Request('https://mempool-stage.bitcoinpurity.org/zh/signet/blocks', { headers: { Accept: 'text/html' } }),
+    { ASSETS: { fetch(request) { seen.push(new URL(request.url).pathname); return new Response('<html>signet</html>'); } } }
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(seen, ['/zh/']);
+});

@@ -1,32 +1,43 @@
 // Bitcoin Purity Cloudflare Worker + static assets.
 // Preserve same-origin API/WebSocket routes from the legacy Nginx frontend.
 const API_ORIGIN = 'https://mempool-api.bitcoinpurity.org';
+// Dedicated Cloudflare Tunnel public hostname targeting the Signet backend.
+// Never route Signet via the mainnet LB or the legacy mempool Nginx frontend.
+const SIGNET_API_ORIGIN = 'https://signet-api.bitcoinpurity.org';
 
 export async function handleApiRequest(request) {
   const incoming = new URL(request.url);
   const path = incoming.pathname;
 
-  if (!path.startsWith('/api/')) {
+  const isSignet = path.startsWith('/signet/api/');
+  if (!path.startsWith('/api/') && !isSignet) {
     return new Response('Not Found', { status: 404 });
   }
 
-  // Do not expose internal backend or Esplora endpoints through the public edge.
-  if (/^\/api\/(?:v1\/)?internal(?:\/|$)/.test(path)) {
+  // Remove the /signet network prefix before forwarding to the independent
+  // Signet backend, whose API namespace is /api/v1/ like mainnet.
+  const backendPath = isSignet ? path.slice('/signet'.length) : path;
+
+  // Keep internal endpoints inaccessible through either public frontend route.
+  if (/^\/api\/(?:v1\/)?internal(?:\/|$)/.test(backendPath)) {
     return new Response('Not Found', { status: 404 });
   }
 
-  const isSocket = path === '/api/v1/ws';
+  const isSocket = backendPath === '/api/v1/ws';
   if (isSocket && request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
     return new Response('WebSocket upgrade required', { status: 426 });
   }
 
-  const upstream = new URL(incoming.pathname + incoming.search, API_ORIGIN);
+  const upstream = new URL(incoming.search || '', isSignet ? SIGNET_API_ORIGIN : API_ORIGIN);
   if (isSocket) {
-    // Existing Nginx uses proxy_pass http://127.0.0.1:8999/ for /api/v1/ws.
+    // The Mempool backend's ws.Server listens on its HTTP server (any URL).
     upstream.pathname = '/';
-  } else if (!path.startsWith('/api/v1/')) {
-    // Legacy Nginx maps /api/foo to the Purity backend's /api/v1/foo.
-    upstream.pathname = path.replace(/^\/api\//, '/api/v1/');
+  } else if (backendPath.startsWith('/api/v1/')) {
+    upstream.pathname = backendPath;
+  } else {
+    // For a Signet backend in electrum mode, Esplora-like REST endpoints
+    // are also exposed under /api/v1/: /signet/api/tx/... -> /api/v1/tx/...
+    upstream.pathname = backendPath.replace(/^\/api\//, '/api/v1/');
   }
 
   const proxyRequest = new Request(upstream.toString(), request);
@@ -59,7 +70,7 @@ export function localizedSpaShell(request) {
 export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
-    if (pathname.startsWith('/api/')) {
+    if (pathname.startsWith('/api/') || pathname.startsWith('/signet/api/')) {
       return handleApiRequest(request);
     }
     const shell = localizedSpaShell(request);
