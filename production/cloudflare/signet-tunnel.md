@@ -40,14 +40,21 @@ Replace `127.0.0.1:8995` with the actual private service address and port. Do **
    - Service URL: `http://127.0.0.1:8995` **only if the backend runs locally on the connector host**. If it is on another Tailscale-connected host, use that host's private Tailscale IP and its actual API port, with appropriate Tailscale ACLs.
    - No `/signet` path prefix at the Tunnel layer: the Worker already strips it.
 4. The dashboard-managed published route normally creates the matching proxied DNS CNAME automatically. Ensure no conflicting DNS record or Worker Route matches `signet-api.bitcoinpurity.org`.
-5. Confirm the Tunnel is connected and test the public endpoint:
+5. Confirm the Tunnel is connected, the backend service is healthy, and the DNS hostname exists.
+
+**The current Cloudflare WAF rule `mempool-api-block-public` actively blocks direct public requests to `signet-api.bitcoinpurity.org` (alongside `mempool-api.bitcoinpurity.org`). A direct public curl returning HTTP 403 is therefore expected and is not proof of a broken Tunnel. Do not disable the rule merely to test the API.**
+
+Cloudflare's same-zone Worker `fetch()` subrequests to proxied hostnames are **not evaluated by the target hostname's WAF Custom Rules**. Therefore perform end-to-end verification through the Stage Worker after the code is deployed, rather than requiring a direct publicly accessible Signet API.
 
 ```sh
-curl -i https://signet-api.bitcoinpurity.org/api/v1/blocks/tip/height
-curl -i https://signet-api.bitcoinpurity.org/api/v1/init-data
+curl -i https://mempool-stage.bitcoinpurity.org/signet/api/v1/blocks/tip/height
+curl -i https://mempool-stage.bitcoinpurity.org/signet/api/v1/init-data
+curl -i https://mempool-stage.bitcoinpurity.org/signet/api/v1/internal/blocks/definition/list
 ```
 
-Do not merge the Worker switch or consider it live until the above returns **real Signet chain data**. A 200 response containing a frontend HTML page is not a valid API response.
+The first two responses should be HTTP 200 with real Signet chain data/JSON, and the internal endpoint should be HTTP 404. Any HTTP 403, 502, 530, HTML payload, or request timeout on the first two requires investigation of Tunnel DNS, WAF, service URL or backend status. The public `signet-api` hostname should remain directly blocked.
+
+Official Cloudflare reference: https://developers.cloudflare.com/waf/feature-interoperability/
 
 ## Route mapping in the Worker
 
@@ -76,7 +83,7 @@ Before publishing for general use, set a Cloudflare WAF Custom Rule for the Tunn
   starts_with(http.request.uri.path, "/api/internal/")))
 ```
 
-Also review all sensitive routes and add a backend-side allowlist or an Access service-token policy where appropriate. Cloudflare Workers same-zone subrequests may have different WAF evaluation behavior; keep Worker-side internal blocks in place as defense in depth. Verify on the public hostname that `/api/v1/internal/blocks/definition/list` is not accessible.
+Also review all sensitive routes and add a backend-side allowlist or an Access service-token policy where appropriate. Cloudflare's same-zone Worker subrequests bypass the target WAF custom rules, so keep Worker-side internal blocks as defense in depth. Verify on the public hostname that `/api/v1/internal/blocks/definition/list` is not accessible.
 
 WebSocket validation in the browser: DevTools -> Network -> WS -> `/signet/api/v1/ws` should return **101 Switching Protocols** and receive an `init` payload. A normal HTTP request to the Stage websocket path should return 426.
 
