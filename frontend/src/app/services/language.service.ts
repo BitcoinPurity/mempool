@@ -8,6 +8,7 @@ import { languages } from '@app/app.constants';
 export class LanguageService {
   private language = 'en';
   private languages = languages;
+
   constructor(
     @Inject(DOCUMENT) private document: Document,
     @Inject(LOCALE_ID) private locale: string,
@@ -19,22 +20,33 @@ export class LanguageService {
     return this.language;
   }
 
-  stripLanguageFromUrl(urlPath: string) {
-    let rawUrlPath = urlPath ? urlPath : document.location.pathname;
-    const urlLanguage = this.document.location.pathname.split('/')[1];
-    if (this.languages.map((lang) => lang.code).indexOf(urlLanguage) != -1) {
-      rawUrlPath = rawUrlPath.substring(3);
+  /** Remove only the first recognized language segment (including source locale en-US). */
+  stripLanguageFromUrl(urlPath?: string | null): string {
+    const pathname = urlPath ?? this.document.location.pathname;
+    const prefix = pathname.match(/^\/([^/]+)(?=\/|$)/)?.[1];
+    if (prefix === 'en-US' || this.languages.some(lang => lang.code === prefix)) {
+      return pathname.slice(prefix.length + 1) || '/';
     }
-    return rawUrlPath;
+    return pathname;
   }
 
-  getLanguageForUrl(): string {
-    return this.language === 'en' ? '' : '/' + this.language;
+  /**
+   * Traditional Nginx uses / for English. Cloudflare Workers builds inject
+   * ENGLISH_LOCALE_PREFIX=/en-US into the published runtime config.
+   */
+  getLanguageForUrl(language: string = this.language): string {
+    if (language !== 'en') {
+      return '/' + language;
+    }
+
+    const view = this.document.defaultView as
+      (Window & { __env?: { ENGLISH_LOCALE_PREFIX?: string } }) | null;
+    return view?.__env?.ENGLISH_LOCALE_PREFIX === '/en-US' ? '/en-US' : '';
   }
 
   setLanguage(language: string): void {
     try {
-      document.cookie = `lang=${language}; expires=Thu, 18 Dec 2050 12:00:00 UTC; path=/`;
+      this.document.cookie = `lang=${language}; expires=Thu, 18 Dec 2050 12:00:00 UTC; path=/`;
     } catch (e) { }
   }
 }
