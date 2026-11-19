@@ -5,7 +5,8 @@
   "LIQUID_ENABLED": false,
   "LIQUID_TESTNET_ENABLED": false,
   "STRATUM_ENABLED": false,
-  "SIGNET_ENABLED": false,
+  "MAINNET_ENABLED": true,
+  "SIGNET_ENABLED": true,
   "MEMPOOL_WEBSITE_URL": "https://mempool.bitcoinpurity.org",
   "LIQUID_WEBSITE_URL": "https://liquid.network",
   "MAINNET_BLOCK_AUDIT_START_HEIGHT": 773911,
@@ -19,5 +20,7 @@
   "PUBLIC_ACCELERATIONS": false,
   "AUDIT": true,
   "PROD_DOMAINS": "mempool.bitcoinpurity.org",
-  "PURITY_NODES_MAP_ENABLED": true
+  "PURITY_NODES_MAP_ENABLED": true,
+  "SUPPLY_DISTRIBUTION_NETWORKS": "mainnet,signet",
+  "ROOT_NETWORK": ""
 }
