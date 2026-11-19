@@ -34,14 +34,45 @@ export async function handleApiRequest(request) {
   return fetch(proxyRequest);
 }
 
+
+// Return the localized SPA shell for a browser navigation to a deep Angular route.
+// Existing files are served by Workers Static Assets before the Worker is invoked;
+// only unmatched requests reach this fallback under the current Wrangler config.
+export function localizedSpaShell(request) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  const accept = request.headers.get('accept') || '';
+  const fetchMode = request.headers.get('sec-fetch-mode') || '';
+  if (!accept.includes('text/html') && fetchMode !== 'navigate') return null;
+
+  const pathname = new URL(request.url).pathname;
+  const match = pathname.match(/^\/(en-US|[a-z]{2})\/(.+)$/);
+  if (!match) return null;
+  const route = match[2];
+
+  // Missing static assets and API endpoints must stay 404, never HTML 200.
+  if (route.split('/').some(part => part.includes('.'))) return null;
+  if (/^(?:api(?:\/|$)|(?:signet|testnet4?|regtest)\/api(?:\/|$))/.test(route)) return null;
+
+  return `/${match[1]}/`;
+}
+
 export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
     if (pathname.startsWith('/api/')) {
       return handleApiRequest(request);
     }
-    // Other paths are ordinarily served without invoking this Worker thanks to
-    // assets.run_worker_first. This fallback is for direct Worker invocations.
+    const shell = localizedSpaShell(request);
+    if (shell) {
+      const shellUrl = new URL(request.url);
+      // Fetch the canonical /<locale>/ directory, not /<locale>/index.html:
+      // default Cloudflare html_handling redirects index.html to the directory.
+      shellUrl.pathname = shell;
+      shellUrl.search = '';
+      return env.ASSETS.fetch(new Request(shellUrl, request));
+    }
+
+    // Static files and unmatched non-navigation requests retain the original path.
     return env.ASSETS.fetch(request);
   },
 };
