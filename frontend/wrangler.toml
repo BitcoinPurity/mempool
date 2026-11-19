@@ -6,3 +6,8 @@ compatibility_date = "2026-11-19"
 directory = "./dist/mempool/browser"
 binding = "ASSETS"
 run_worker_first = ["/api/*"]
+
+# Workers Builds runs the existing Angular build command first; Wrangler then
+# adjusts only the /en-US/ HTML base before uploading the static assets.
+[build]
+command = "node ./scripts/fix-en-us-base.mjs"
